@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Secrets & data
+.env
+data/
+*.db
+*.db-journal
+
+# Deploy (berisi kredensial kamera)
+deploy/mediamtx.yml
+deploy/cloudflared/
+
+# OS
+.DS_Store
+*.swp

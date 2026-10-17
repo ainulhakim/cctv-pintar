@@ -1,0 +1,52 @@
+# ===== CCTV Pintar — contoh konfigurasi =====
+# Salin ke deploy/mediamtx.yml lalu isi kredensial kamera.
+# Nama path = stream key yang dipakai aplikasi (app memanggil /{key}/index.m3u8).
+
+logLevel: info
+logDestinations: [stdout]
+
+api: yes
+apiAddress: 127.0.0.1:9997
+
+rtsp: yes
+rtspAddress: 127.0.0.1:8554
+
+hls: yes
+hlsAddress: 127.0.0.1:8888
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+hlsSegmentDuration: 1s
+hlsAlwaysRemux: no
+
+rtmp: no
+webrtc: no
+srt: no
+playback: no
+moq: no
+
+paths:
+  # Kamera 1 — sub-stream 704x576 HEVC -> transcode H.264
+  utara:
+    runOnDemand: >
+      ffmpeg -hide_banner -loglevel warning -rtsp_transport tcp
+      -i "rtsp://CAM1_USER:CAM1_PASS_ENCODED@CAM1_IP:554/1/2"
+      -c:v libx264 -preset veryfast -tune zerolatency -profile:v main
+      -b:v 600k -maxrate 700k -bufsize 1200k -g 40 -an
+      -f rtsp rtsp://127.0.0.1:8554/utara
+    runOnDemandRestart: yes
+    runOnDemandStartTimeout: 25s
+    runOnDemandCloseAfter: 15s
+    rtspTransport: tcp
+
+  # Kamera 2
+  selatan:
+    runOnDemand: >
+      ffmpeg -hide_banner -loglevel warning -rtsp_transport tcp
+      -i "rtsp://CAM2_USER:CAM2_PASS_ENCODED@CAM2_IP:554/1/2"
+      -c:v libx264 -preset veryfast -tune zerolatency -profile:v main
+      -b:v 600k -maxrate 700k -bufsize 1200k -g 40 -an
+      -f rtsp rtsp://127.0.0.1:8554/selatan
+    runOnDemandRestart: yes
+    runOnDemandStartTimeout: 25s
+    runOnDemandCloseAfter: 15s
+    rtspTransport: tcp
