@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Pantauan · {{ app_name }}{% endblock %}
+
+{% block content %}
+<h1 class="mb-1 text-lg font-semibold">Halo, {{ user.username }}</h1>
+<p class="mb-6 text-sm text-slate-400">
+  Halaman ini masih placeholder (Fase 3). Grid kamera &amp; kontrol jadwal menyusul di Fase 5.
+</p>
+
+<div class="grid gap-4 sm:grid-cols-2">
+  <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <div class="text-sm text-slate-400">Kamera terdaftar</div>
+    <div class="mt-1 text-2xl font-semibold">{{ total_cameras }}</div>
+  </div>
+  <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <div class="text-sm text-slate-400">Kamera aktif</div>
+    <div class="mt-1 text-2xl font-semibold">{{ active_cameras }}</div>
+  </div>
+</div>
+{% endblock %}

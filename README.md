@@ -30,7 +30,7 @@ cloudflared tunnel cctv-pintar → https://cctv.ainulhakim.com
 - [x] **Fase 0** — Recon kamera, identifikasi kredensial, cek sub-stream
 - [x] **Fase 1** — Blokir sleep/suspend di server rumah, WiFi powersave off, linger
 - [x] **Fase 2** — MediaMTX + transcode on-demand + systemd service
-- [ ] **Fase 3** — Aplikasi FastAPI: skeleton, model, auth, login
+- [x] **Fase 3** — Aplikasi FastAPI: skeleton, model, auth, login (30 test hijau, bcrypt langsung tanpa passlib)
 - [ ] **Fase 4** — Logika jadwal + unit test
 - [ ] **Fase 5** — Halaman pantauan viewer + proxy HLS ber-guard
 - [ ] **Fase 6** — Panel admin (kamera, jadwal, user, log)
