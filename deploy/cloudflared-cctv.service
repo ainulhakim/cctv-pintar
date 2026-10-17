@@ -1,0 +1,19 @@
+[Unit]
+Description=Cloudflare Tunnel - cctv.ainulhakim.com (tunnel cctv-pintar)
+After=network-online.target cctv-pintar.service
+Wants=network-online.target
+Requires=cctv-pintar.service
+
+[Service]
+Type=simple
+User=ainul
+Group=ainul
+ExecStart=/usr/bin/cloudflared --no-autoupdate --config /home/ainul/.cloudflared/cctv-pintar.yml tunnel run
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

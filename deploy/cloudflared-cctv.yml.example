@@ -1,0 +1,13 @@
+# Template konfigurasi tunnel cloudflared untuk CCTV Pintar.
+# Letakkan sebagai ~/.cloudflared/cctv-pintar.yml di server rumah.
+# Kredensial tunnel (<TUNNEL-ID>-*.json) TIDAK ada di repo ini.
+tunnel: <TUNNEL-ID>
+credentials-file: /home/ainul/.cloudflared/<TUNNEL-ID>.json
+
+ingress:
+  - hostname: cctv.ainulhakim.com
+    service: http://<IP-TAILNET>:8090
+    originRequest:
+      connectTimeout: 10s
+      noTLSVerify: false
+  - service: http_status:404

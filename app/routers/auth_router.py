@@ -12,6 +12,7 @@ from ..config import settings
 from ..db import get_db
 from ..deps import get_current_user_optional
 from ..models import AccessLog, User
+from ..ratelimit import login_limiter
 from ..security import sign_session, verify_password
 from ..templating import templates
 
@@ -59,6 +60,20 @@ def login_submit(
     db: Session = Depends(get_db),
 ):
     username = (username or "").strip()
+    ip = client_ip(request) or "unknown"
+
+    if login_limiter.is_blocked(ip):
+        sisa = login_limiter.retry_after(ip)
+        db.add(AccessLog(user_id=None, action="login_blocked", detail=f"ip={ip}", ip=ip))
+        db.commit()
+        return _render_login(
+            request,
+            f"Terlalu banyak percobaan gagal. Coba lagi dalam {sisa} detik.",
+            _safe_next(next),
+            username,
+            status_code=429,
+        )
+
     user = (
         db.query(User).filter(User.username == username).one_or_none()
         if username
@@ -66,12 +81,13 @@ def login_submit(
     )
 
     if user is None or not user.active or not verify_password(password, user.password_hash):
+        login_limiter.record_failure(ip)
         db.add(
             AccessLog(
                 user_id=user.id if user is not None else None,
                 action="login_failed",
                 detail="username=" + (username or "-"),
-                ip=client_ip(request),
+                ip=ip,
             )
         )
         db.commit()
@@ -83,7 +99,8 @@ def login_submit(
             status_code=401,
         )
 
-    db.add(AccessLog(user_id=user.id, action="login_ok", ip=client_ip(request)))
+    login_limiter.reset(ip)
+    db.add(AccessLog(user_id=user.id, action="login_ok", ip=ip))
     db.commit()
 
     response = RedirectResponse(_safe_next(next), status_code=303)

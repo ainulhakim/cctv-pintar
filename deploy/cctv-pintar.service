@@ -1,0 +1,25 @@
+[Unit]
+Description=CCTV Pintar - aplikasi web pemantauan CCTV (FastAPI/uvicorn)
+Documentation=file:///home/ainul/cctv-pintar/README.md
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ainul
+Group=ainul
+WorkingDirectory=/home/ainul/cctv-pintar
+EnvironmentFile=/home/ainul/cctv-pintar/.env
+Environment=PYTHONUNBUFFERED=1
+# Bind ke IP Tailscale supaya bisa diakses dari tailnet dan oleh cloudflared
+# di host yang sama. Tidak diekspos ke LAN rumah.
+ExecStart=/home/ainul/cctv-pintar/.venv/bin/python -m uvicorn app.main:app --host <IP-TAILNET> --port 8090 --workers 1 --no-server-header
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

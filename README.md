@@ -34,7 +34,15 @@ cloudflared tunnel cctv-pintar → https://cctv.ainulhakim.com
 - [x] **Fase 4** — Logika jadwal (`app/schedule.py`) + unit test, termasuk window lintas tengah malam
 - [ ] **Fase 5** — Halaman pantauan viewer + proxy HLS ber-guard
 - [ ] **Fase 6** — Panel admin (kamera, jadwal, user, log)
-- [ ] **Fase 7** — Deploy cloudflared + hardening + uji end-to-end
+- [~] **Fase 7** — Deploy jalan (systemd + tunnel Cloudflare + rate limit login); sisa: uji dari HP & `docs/OPERASIONAL.md`
+
+## Akses aplikasi (sudah jalan)
+
+- Tailnet: `http://<IP-TAILNET>:8090` (kini **200 OK**)
+- Publik: `https://cctv.ainulhakim.com` (tunnel `cctv-pintar`, **200 OK**)
+- Login awal: user `admin`, password ada di `/home/ainul/cctv-pintar/.env`
+- `/api/docs` **mati** saat `APP_ENV=production`
+- Belum: halaman pantauan (fase 5) — `/` masih placeholder statistik
 
 Detail rencana: [`docs/plans/2026-10-17-cctv-portal.md`](docs/plans/2026-10-17-cctv-portal.md)
 
@@ -54,9 +62,16 @@ Kredensial kamera **tidak** disimpan di repo ini — ada di `deploy/mediamtx.yml
 ## Service di server
 
 ```bash
-systemctl status mediamtx      # relay RTSP -> HLS
-systemctl status cctv-pintar   # aplikasi web (belum dibuat)
-systemctl status cloudflared-cctv # konektor tunnel (belum dibuat)
+systemctl status mediamtx          # relay RTSP -> HLS (aktif)
+systemctl status cctv-pintar       # aplikasi web, bind <IP-TAILNET>:8090 (aktif)
+systemctl status cloudflared-cctv  # konektor tunnel cctv.ainulhakim.com (aktif)
+```
+
+Pemasangan/repasang unit di server rumah:
+
+```bash
+ssh ainul@<IP-TAILNET>
+cd ~/cctv-pintar && SUDO_PASS=xxxxx bash scripts/remote_setup_rumah.sh
 ```
 
 ## Development

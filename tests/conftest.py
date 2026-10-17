@@ -29,6 +29,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.main import create_app  # noqa: E402
 from app.models import ROLE_ADMIN, ROLE_VIEWER, User  # noqa: E402
+from app.ratelimit import login_limiter  # noqa: E402
 from app.security import hash_password  # noqa: E402
 
 ADMIN_PW = "admin123"
@@ -39,6 +40,7 @@ VIEWER_PW = "viewer123"
 def fresh_db():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    login_limiter.reset_all()
     yield
 
 
