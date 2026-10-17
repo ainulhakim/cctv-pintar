@@ -81,8 +81,24 @@ Password lebih dari 72 byte di-pre-hash (SHA-256+base64) sehingga tidak dipotong
 - `start_time == end_time` = terbuka 24 jam pada hari terpilih.
 - `is_open()` / `next_open()` ada di `app/schedule.py` (murni, tanpa I/O) — lihat `tests/test_schedule.py`.
 
+## Verifikasi setelah deploy
+
+```bash
+# di server rumah
+cd /home/ainul/cctv-pintar
+.venv/bin/python -m pytest -q         # 75 test
+bash scripts/provision_rumah.sh       # sekali saja: buat .env (perm 600)
+.venv/bin/python scripts/seed.py --with-cameras
+.venv/bin/python scripts/smoke.py     # uji HTTP end-to-end (12 pemeriksaan)
+```
+
+Status verifikasi terakhir: **75 test hijau** + **smoke 12/12 lolos** di server rumah (Python 3.9.2).
+
 ## Deploy
 
 ```bash
-./scripts/deploy.sh             # rsync ke server rumah (lihat scripts/deploy.sh)
+./scripts/deploy.sh                    # rsync ke server rumah (ssh interaktif)
+RSSH_PASS=xxxxx ./scripts/deploy.sh    # versi non-interaktif (sshpass)
 ```
+
+Catatan server rumah: `rsync` dan `python3.9-venv` sudah dipasang, `.venv` proyek sudah terisi dependensi.
