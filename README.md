@@ -30,8 +30,8 @@ cloudflared tunnel cctv-pintar → https://cctv.ainulhakim.com
 - [x] **Fase 0** — Recon kamera, identifikasi kredensial, cek sub-stream
 - [x] **Fase 1** — Blokir sleep/suspend di server rumah, WiFi powersave off, linger
 - [x] **Fase 2** — MediaMTX + transcode on-demand + systemd service
-- [x] **Fase 3** — Aplikasi FastAPI: skeleton, model, auth, login (30 test hijau, bcrypt langsung tanpa passlib)
-- [ ] **Fase 4** — Logika jadwal + unit test
+- [x] **Fase 3** — Aplikasi FastAPI: skeleton, model, auth, login (bcrypt langsung tanpa passlib)
+- [x] **Fase 4** — Logika jadwal (`app/schedule.py`) + unit test, termasuk window lintas tengah malam
 - [ ] **Fase 5** — Halaman pantauan viewer + proxy HLS ber-guard
 - [ ] **Fase 6** — Panel admin (kamera, jadwal, user, log)
 - [ ] **Fase 7** — Deploy cloudflared + hardening + uji end-to-end
@@ -64,10 +64,22 @@ systemctl status cloudflared-cctv # konektor tunnel (belum dibuat)
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
-python scripts/seed.py          # buat admin pertama
+python scripts/seed.py --with-cameras   # buat admin + 2 kamera contoh
 uvicorn app.main:app --reload --port 8090
-pytest -v
+pytest -q
 ```
+
+Catatan: bcrypt dipakai **langsung** (tanpa passlib) agar tidak ada warning
+"trapped error reading bcrypt version" dari passlib vs bcrypt 4.x.
+Password lebih dari 72 byte di-pre-hash (SHA-256+base64) sehingga tidak dipotong.
+
+## Konvensi jadwal
+
+- Hari: **Senin=0 … Minggu=6** (sama dengan `datetime.weekday()`), disimpan sebagai string `"0,1,2"`.
+- Jam (`start_time`/`end_time`) adalah waktu lokal sesuai `policy.timezone` (default `Asia/Jakarta`).
+- Window mendukung lintas tengah malam: `22:00–05:00` berarti dini hari ikut hari **sebelumnya**.
+- `start_time == end_time` = terbuka 24 jam pada hari terpilih.
+- `is_open()` / `next_open()` ada di `app/schedule.py` (murni, tanpa I/O) — lihat `tests/test_schedule.py`.
 
 ## Deploy
 
