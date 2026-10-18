@@ -23,7 +23,7 @@ REPO_URL="${REPO_URL:-https://github.com/ainulhakim/cctv-pintar.git}"
 BRANCH="${BRANCH:-main}"
 SERVICE="${SERVICE:-cctv-pintar}"
 SUDO_PASS="${SUDO_PASS:-}"
-HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8090/healthz}"
+HEALTH_URL="${HEALTH_URL:-http://<IP-TAILNET>:8090/healthz}"
 RUN_TESTS="${RUN_TESTS:-0}"
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -88,7 +88,7 @@ if systemctl list-unit-files --type=service | grep -q "^${SERVICE}\.service"; th
   sleep 2
   systemctl is-active "$SERVICE"
   echo ">> health: $HEALTH_URL"
-  curl -fsS --max-time 10 "$HEALTH_URL" && echo
+  if curl -fsS --max-time 10 "$HEALTH_URL"; then echo; else echo "!! health check gagal — periksa: journalctl -u $SERVICE -n 50 --no-pager"; fi
 else
   echo "!! unit ${SERVICE}.service tidak ditemukan — lewati restart"
 fi
