@@ -35,7 +35,7 @@ rsync -az --delete \
   -e "$([[ -n "${RSSH_PASS:-}" ]] && echo "sshpass -p ${RSSH_PASS} ssh -o StrictHostKeyChecking=accept-new")" \
   ./ "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/"
 
-echo ">> cek service '${SERVICE}'"
-"${SSH[@]}" "systemctl list-unit-files | grep -q '^${SERVICE}.service' && sudo systemctl restart ${SERVICE} && systemctl is-active ${SERVICE} || echo 'service ${SERVICE} belum ada (dibuat di Fase 7)'"
+echo ">> cek service '${SERVICE}' (catatan: skrip ini CADANGAN; alur normal = scripts/deploy_git.sh)"
+"${SSH[@]}" "LS=\$(systemctl show -p LoadState --value ${SERVICE}); if [ \"\$LS\" = loaded ]; then sudo systemctl restart ${SERVICE} && systemctl is-active ${SERVICE}; else echo 'service ${SERVICE} belum ada (LoadState='\$LS')'; fi"
 
 echo ">> selesai"

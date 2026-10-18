@@ -26,7 +26,7 @@ SUDO_PASS="${SUDO_PASS:-}"
 HEALTH_URL="${HEALTH_URL:-http://<IP-TAILNET>:8090/healthz}"
 RUN_TESTS="${RUN_TESTS:-0}"
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DIR="${DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$DIR"
 
 echo ">> dir   : $DIR"
@@ -78,7 +78,10 @@ if [[ "$RUN_TESTS" == "1" ]]; then
   "$PY" scripts/smoke.py
 fi
 
-if systemctl list-unit-files --type=service | grep -q "^${SERVICE}\.service"; then
+# PENTING: jangan pakai `systemctl list-unit-files | grep -q` — dengan `set -o pipefail`,
+# grep -q yang keluar lebih awal membuat systemctl kena SIGPIPE sehingga pipa dianggap gagal.
+LOAD_STATE="$(systemctl show -p LoadState --value "$SERVICE" 2>/dev/null || true)"
+if [[ "$LOAD_STATE" == "loaded" ]]; then
   echo ">> restart service '$SERVICE'"
   if [[ -n "$SUDO_PASS" ]]; then
     echo "$SUDO_PASS" | sudo -S systemctl restart "$SERVICE"
@@ -90,7 +93,7 @@ if systemctl list-unit-files --type=service | grep -q "^${SERVICE}\.service"; th
   echo ">> health: $HEALTH_URL"
   if curl -fsS --max-time 10 "$HEALTH_URL"; then echo; else echo "!! health check gagal — periksa: journalctl -u $SERVICE -n 50 --no-pager"; fi
 else
-  echo "!! unit ${SERVICE}.service tidak ditemukan — lewati restart"
+  echo "!! unit ${SERVICE}.service tidak ditemukan (LoadState=${LOAD_STATE:-kosong}) — lewati restart"
 fi
 
 echo ">> selesai: $AFTER"
