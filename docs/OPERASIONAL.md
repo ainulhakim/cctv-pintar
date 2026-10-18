@@ -59,6 +59,11 @@ Di halaman pantauan, admin melihat tombol **"Buka"** pada kartu yang berstatus T
    (maksimal **5 percobaan salah / 5 menit** per user+IP → balasan `429`).
 5. Logout otomatis mencabut override.
 
+Catatan: setelah password admin diganti lewat menu **Pengguna → Reset password**, nilai
+`ADMIN_PASSWORD` di `.env` menjadi **basi** — itu normal, karena `.env` hanya dipakai sekali
+saat seeding (`scripts/seed.py`) dan oleh `scripts/smoke.py`. Untuk memulihkan akses pakai
+`scripts/set_password.py` (lihat bagian Troubleshooting).
+
 ## 4. Kelola pengguna
 
 Menu **Pengguna**:
@@ -118,7 +123,8 @@ Backup repo: `git push origin main` (`github.com/ainulhakim/cctv-pintar`).
 | `502 MediaMTX tidak dapat dihubungi` | `systemctl status mediamtx`, lalu restart |
 | Snapshot gagal (`503`) | Kamera mungkin offline; uji `ffmpeg -rtsp_transport tcp -i rtsp://127.0.0.1:8554/<key> -frames:v 1 /tmp/a.jpg` |
 | Halaman tidak terbuka dari internet | `systemctl status cloudflared-cctv`, `journalctl -u cloudflared-cctv` |
-| Lupa password admin | `cd ~/cctv-pintar && .venv/bin/python scripts/seed.py` (idempotent, tidak mengubah user yang ada) — atau reset lewat menu Pengguna dari akun admin lain |
+| Lupa password admin | `cd ~/cctv-pintar && NEW_PASSWORD='rahasia-baru' .venv/bin/python scripts/set_password.py admin` (di server rumah). `scripts/seed.py` **tidak** me-reset user yang sudah ada |
+| Perlu admin baru darurat | `cd ~/cctv-pintar && NEW_PASSWORD='rahasia-baru' .venv/bin/python scripts/set_password.py admin2 --create-admin` |
 | Kamera offline | Cek Wi-Fi rumah & daya kamera; `ping <IP-KAMERA-1>` dari server rumah |
 
 Catatan: laptop server rumah wajib tetap menyala dan **tidak boleh sleep** (sudah dimatikan
