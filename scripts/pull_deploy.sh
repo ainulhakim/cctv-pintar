@@ -49,8 +49,9 @@ else
   git remote add origin "$REPO_URL" 2>/dev/null || git remote set-url origin "$REPO_URL"
   BEFORE="-"
   git fetch --prune origin "$BRANCH"
-  # reset --hard aman dipakai di sini: ia menimpa berkas yang ada di repo,
-  # sedangkan berkas yang di-gitignore (.env, .venv, data/) tetap tidak tersentuh.
+  # Buat ref branch dulu supaya HEAD valid (pada clone baru HEAD masih "unborn"),
+  # baru reset --hard: berkas yang ada di repo ditimpa, berkas ter-gitignore tetap aman.
+  git update-ref "refs/heads/$BRANCH" "refs/remotes/origin/$BRANCH" 2>/dev/null || true
   git reset --hard "origin/$BRANCH"
   git branch -q --set-upstream-to="origin/$BRANCH" "$BRANCH" 2>/dev/null || true
 fi
