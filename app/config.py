@@ -61,6 +61,9 @@ class Settings:
 
         self.mediamtx_hls_base = os.getenv("MEDIAMTX_HLS_BASE", "http://127.0.0.1:8888").rstrip("/")
         self.mediamtx_api = os.getenv("MEDIAMTX_API", "http://127.0.0.1:9997").rstrip("/")
+        self.mediamtx_rtsp_base = os.getenv("MEDIAMTX_RTSP_BASE", "rtsp://127.0.0.1:8554").rstrip("/")
+        self.snapshot_cache_seconds = float(os.getenv("SNAPSHOT_CACHE_SECONDS", "5"))
+        self.snapshot_timeout = float(os.getenv("SNAPSHOT_TIMEOUT", "20"))
 
         self.tz_name = os.getenv("TZ_NAME", "Asia/Jakarta").strip() or "Asia/Jakarta"
         self.session_max_age = int(os.getenv("SESSION_MAX_AGE", "43200"))  # 12 jam

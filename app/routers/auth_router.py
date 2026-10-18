@@ -8,10 +8,11 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
+from .. import audit
 from ..config import settings
 from ..db import get_db
 from ..deps import get_current_user_optional
-from ..models import AccessLog, User
+from ..models import User
 from ..ratelimit import login_limiter
 from ..security import sign_session, verify_password
 from ..templating import templates
@@ -24,15 +25,6 @@ def _safe_next(raw: Optional[str]) -> str:
     if raw and raw.startswith("/") and not raw.startswith("//"):
         return raw
     return "/"
-
-
-def client_ip(request: Request) -> Optional[str]:
-    """IP klien sebenarnya (Cloudflare di depan app)."""
-    for header in ("cf-connecting-ip", "x-forwarded-for"):
-        value = request.headers.get(header)
-        if value:
-            return value.split(",")[0].strip()
-    return request.client.host if request.client else None
 
 
 def _render_login(request: Request, error: Optional[str], next_url: str, username: str, status_code: int = 200):
@@ -60,12 +52,11 @@ def login_submit(
     db: Session = Depends(get_db),
 ):
     username = (username or "").strip()
-    ip = client_ip(request) or "unknown"
+    ip = audit.client_ip(request) or "unknown"
 
     if login_limiter.is_blocked(ip):
         sisa = login_limiter.retry_after(ip)
-        db.add(AccessLog(user_id=None, action="login_blocked", detail=f"ip={ip}", ip=ip))
-        db.commit()
+        audit.record(db, request, audit.ACTION_LOGIN_BLOCKED, detail=f"ip={ip}")
         return _render_login(
             request,
             f"Terlalu banyak percobaan gagal. Coba lagi dalam {sisa} detik.",
@@ -82,15 +73,13 @@ def login_submit(
 
     if user is None or not user.active or not verify_password(password, user.password_hash):
         login_limiter.record_failure(ip)
-        db.add(
-            AccessLog(
-                user_id=user.id if user is not None else None,
-                action="login_failed",
-                detail="username=" + (username or "-"),
-                ip=ip,
-            )
+        audit.record(
+            db,
+            request,
+            audit.ACTION_LOGIN_FAILED,
+            user=user,
+            detail="username=" + (username or "-"),
         )
-        db.commit()
         return _render_login(
             request,
             "Username atau password salah.",
@@ -100,8 +89,7 @@ def login_submit(
         )
 
     login_limiter.reset(ip)
-    db.add(AccessLog(user_id=user.id, action="login_ok", ip=ip))
-    db.commit()
+    audit.record(db, request, audit.ACTION_LOGIN_OK, user=user)
 
     response = RedirectResponse(_safe_next(next), status_code=303)
     response.set_cookie(

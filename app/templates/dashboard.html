@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Pantauan · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <div>
+    <h1 class="text-lg font-semibold">Pantauan Langsung</h1>
+    <p class="text-sm text-slate-400">
+      Status diperbarui otomatis tiap 30 detik · <span id="jam">{{ sekarang }}</span> {{ tz_name }}
+    </p>
+  </div>
+  <button id="tombol-segarkan"
+          class="rounded-md border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800">
+    Segarkan
+  </button>
+</div>
+
+<div id="grid" class="mt-6 grid gap-4 md:grid-cols-2">
+  {% for cam in cameras %}
+  <article class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60"
+           data-slug="{{ cam.slug }}"
+           data-stream="{{ cam.stream_url }}"
+           data-snapshot="{{ cam.snapshot_url }}">
+    <div class="relative aspect-video bg-black">
+      <video class="h-full w-full" controls muted playsinline preload="none"></video>
+      <div class="overlay absolute inset-0 hidden flex-col items-center justify-center gap-1 bg-slate-950/90 px-6 text-center">
+        <span class="text-sm font-semibold text-amber-300">Tertutup</span>
+        <span class="overlay-detail text-xs text-slate-300"></span>
+      </div>
+    </div>
+    <div class="flex items-start justify-between gap-3 p-3">
+      <div class="min-w-0">
+        <div class="truncate font-medium">{{ cam.name }}</div>
+        <div class="truncate text-xs text-slate-400">{{ cam.location or '—' }}</div>
+        <div class="text-xs text-slate-500">Akses: {{ cam.policy }}</div>
+      </div>
+      <span class="pill whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold"></span>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+
+{% if not cameras %}
+<p class="mt-8 text-sm text-slate-400">
+  Belum ada kamera aktif. Tambahkan lewat panel admin.
+</p>
+{% endif %}
+
+<p class="mt-6 text-xs text-slate-500">
+  Aliran video hanya keluar lewat endpoint ber-autentikasi milik aplikasi ini —
+  kredensial kamera tidak pernah dikirim ke browser.
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
+<script>
+(function () {
+  const STATUS_URL = "/api/cameras/status";
+  const REFRESH_MS = 30000;
+  const pemutar = new Map();
+
+  const kartu = {};
+  document.querySelectorAll("article[data-slug]").forEach(function (el) {
+    kartu[el.dataset.slug] = el;
+  });
+
+  function setPill(el, terbuka) {
+    el.classList.remove("bg-emerald-500/15", "text-emerald-300", "bg-amber-500/15", "text-amber-300");
+    if (terbuka) {
+      el.classList.add("bg-emerald-500/15", "text-emerald-300");
+      el.textContent = "LIVE";
+    } else {
+      el.classList.add("bg-amber-500/15", "text-amber-300");
+      el.textContent = "TERTUTUP";
+    }
+  }
+
+  function lepasPemutar(slug) {
+    const hls = pemutar.get(slug);
+    if (hls) {
+      try { hls.destroy(); } catch (e) { /* diabaikan */ }
+      pemutar.delete(slug);
+    }
+    const video = kartu[slug] && kartu[slug].querySelector("video");
+    if (video) {
+      video.removeAttribute("src");
+      try { video.load(); } catch (e) { /* diabaikan */ }
+    }
+  }
+
+  function pasangPemutar(slug) {
+    const el = kartu[slug];
+    if (!el || pemutar.has(slug)) return;
+    const video = el.querySelector("video");
+    const src = el.dataset.stream;
+    video.poster = el.dataset.snapshot + "?t=" + Date.now();
+
+    if (window.Hls && window.Hls.isSupported()) {
+      const hls = new window.Hls({ lowLatencyMode: true, liveSyncDurationCount: 2 });
+      hls.on(window.Hls.Events.ERROR, function (_evt, data) {
+        if (data && data.fatal) {
+          lepasPemutar(slug);
+        }
+      });
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      pemutar.set(slug, hls);
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = src; /* Safari: HLS native */
+      pemutar.set(slug, { destroy: function () {} });
+    }
+  }
+
+  function terapkan(cam) {
+    const el = kartu[cam.slug];
+    if (!el) return;
+    const overlay = el.querySelector(".overlay");
+    const detail = el.querySelector(".overlay-detail");
+    setPill(el.querySelector(".pill"), cam.open);
+
+    if (cam.open) {
+      overlay.classList.add("hidden");
+      overlay.classList.remove("flex");
+      pasangPemutar(cam.slug);
+    } else {
+      lepasPemutar(cam.slug);
+      detail.textContent = cam.next_open_label
+        ? "Dibuka kembali " + cam.next_open_label
+        : "Tidak ada jadwal buka aktif";
+      overlay.classList.remove("hidden");
+      overlay.classList.add("flex");
+    }
+  }
+
+  async function segarkan() {
+    try {
+      const resp = await fetch(STATUS_URL, { headers: { accept: "application/json" } });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      (data.cameras || []).forEach(terapkan);
+      const jam = document.getElementById("jam");
+      if (jam && data.now) {
+        jam.textContent = new Date(data.now).toLocaleTimeString("id-ID", { hour12: false });
+      }
+    } catch (e) { /* biarkan pemutar tetap jalan */ }
+  }
+
+  document.getElementById("tombol-segarkan").addEventListener("click", segarkan);
+  setInterval(segarkan, REFRESH_MS);
+  segarkan();
+})();
+</script>
+{% endblock %}
