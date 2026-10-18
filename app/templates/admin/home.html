@@ -1,9 +1,94 @@
-{% extends "base.html" %}
-{% block title %}Admin · {{ app_name }}{% endblock %}
+{% extends "admin/base_admin.html" %}
+{% block title %}Ringkasan Admin · {{ app_name }}{% endblock %}
 
-{% block content %}
-<h1 class="mb-1 text-lg font-semibold">Panel Admin</h1>
-<p class="text-sm text-slate-400">
-  Placeholder (Fase 3). CRUD kamera, jadwal akses, dan user diisi pada Fase 6.
-</p>
+{% block admin_content %}
+<h1 class="text-lg font-semibold">Ringkasan</h1>
+<p class="mb-5 text-sm text-slate-400">Waktu server: {{ sekarang }} {{ tz_name }}</p>
+
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <div class="text-sm text-slate-400">Kamera aktif</div>
+    <div class="mt-1 text-2xl font-semibold">{{ cameras | selectattr('enabled') | list | length }}/{{ cameras | length }}</div>
+  </div>
+  <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <div class="text-sm text-slate-400">Policy publik 24 jam</div>
+    <div class="mt-1 text-2xl font-semibold">{{ jumlah_publik }}</div>
+  </div>
+  <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <div class="text-sm text-slate-400">Akses ditolak (24 jam)</div>
+    <div class="mt-1 text-2xl font-semibold {{ 'text-amber-300' if ditolak_24jam else '' }}">{{ ditolak_24jam }}</div>
+  </div>
+  <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <div class="text-sm text-slate-400">Login gagal (24 jam)</div>
+    <div class="mt-1 text-2xl font-semibold {{ 'text-amber-300' if login_gagal_24jam else '' }}">{{ login_gagal_24jam }}</div>
+  </div>
+</div>
+
+<div class="mt-6 grid gap-4 lg:grid-cols-3">
+  <div class="lg:col-span-2 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <div class="mb-3 flex items-center justify-between">
+      <h2 class="font-medium">Kamera</h2>
+      <a href="/admin/cameras" class="text-xs text-emerald-300 hover:underline">kelola →</a>
+    </div>
+    {% if cameras %}
+    <div class="space-y-2">
+      {% for cam in cameras %}
+      <div class="flex items-center justify-between gap-3 rounded-lg border border-slate-800 px-3 py-2 text-sm">
+        <div class="min-w-0">
+          <div class="truncate font-medium">{{ cam.name }}</div>
+          <div class="text-xs text-slate-400">{{ cam.slug }} · {{ cam.policy }}</div>
+        </div>
+        <div class="flex shrink-0 items-center gap-2 text-xs">
+          {% if not cam.enabled %}
+          <span class="rounded-full bg-slate-700/40 px-2 py-0.5 text-slate-300">NONAKTIF</span>
+          {% elif cam.open %}
+          <span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300">LIVE</span>
+          {% else %}
+          <span class="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300">TERTUTUP</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-slate-400">Belum ada kamera. <a class="text-emerald-300 hover:underline" href="/admin/cameras">Tambahkan sekarang</a>.</p>
+    {% endif %}
+  </div>
+
+  <div class="space-y-4">
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+      <h2 class="mb-2 font-medium">Status MediaMTX</h2>
+      {% if mediamtx.error %}
+      <p class="text-sm text-red-300">{{ mediamtx.error }}</p>
+      {% else %}
+      <ul class="space-y-1 text-sm">
+        {% for p in mediamtx.paths %}
+        <li class="flex items-center justify-between gap-2">
+          <span class="text-slate-300">{{ p.name }}</span>
+          <span class="text-xs {% if p.ready %}text-emerald-300{% else %}text-amber-300{% endif %}">
+            {{ 'siap' if p.ready else 'belum siap' }}{% if p.tracks %} · {{ p.tracks }}{% endif %} · {{ p.readers }} penonton
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+      <h2 class="mb-2 font-medium">Disk server</h2>
+      {% if disk.error %}
+      <p class="text-sm text-red-300">{{ disk.error }}</p>
+      {% else %}
+      <p class="text-sm text-slate-300">{{ disk.used_gb }} GB / {{ disk.total_gb }} GB terpakai ({{ disk.persen }}%)</p>
+      <p class="text-xs {% if disk.persen > 85 %}text-amber-300{% else %}text-slate-500{% endif %}">sisa {{ disk.free_gb }} GB</p>
+      {% endif %}
+    </div>
+
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+      <h2 class="mb-2 font-medium">Pengguna</h2>
+      <p class="text-sm text-slate-300">{{ user_aktif }} aktif / {{ total_user }} total</p>
+      <a href="/admin/users" class="mt-2 inline-block text-xs text-emerald-300 hover:underline">kelola pengguna →</a>
+    </div>
+  </div>
+</div>
 {% endblock %}

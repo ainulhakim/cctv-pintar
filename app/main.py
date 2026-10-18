@@ -2,24 +2,31 @@
 
 Fase 3: skeleton, config, model, autentikasi + halaman login.
 Fase 5: halaman pantauan + proxy HLS ber-guard + snapshot.
-Fase 6: panel admin (menyusul).
+Fase 6: panel admin (kamera, jadwal, pengguna, log & status).
 """
 
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .config import settings
 from .db import Base, engine
-from .deps import require_admin
-from .models import User
-from .routers import auth_router, stream, view
-from .templating import templates
+from .routers import (
+    admin_cameras,
+    admin_home,
+    admin_logs,
+    admin_policies,
+    admin_users,
+    auth_router,
+    stream,
+    view,
+)
+from .templating import templates  # noqa: F401  (dipakai router; impor dini memastikan template siap)
 
 
 @asynccontextmanager
@@ -41,9 +48,15 @@ def create_app() -> FastAPI:
     )
 
     app.mount("/static", StaticFiles(directory=str(settings.static_dir)), name="static")
+
     app.include_router(auth_router.router)
     app.include_router(view.router)
     app.include_router(stream.router)
+    app.include_router(admin_home.router)
+    app.include_router(admin_cameras.router)
+    app.include_router(admin_policies.router)
+    app.include_router(admin_users.router)
+    app.include_router(admin_logs.router)
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
@@ -69,15 +82,6 @@ def create_app() -> FastAPI:
     @app.get("/healthz", tags=["system"])
     def healthz():
         return {"ok": True, "version": __version__, "env": settings.env}
-
-    @app.get("/admin/", tags=["admin"])
-    def admin_home(request: Request, user: User = Depends(require_admin)):
-        """Placeholder panel admin — diisi pada Fase 6."""
-        return templates.TemplateResponse(
-            request=request,
-            name="admin/home.html",
-            context={"user": user},
-        )
 
     return app
 

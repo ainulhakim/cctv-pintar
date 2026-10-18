@@ -33,8 +33,8 @@ cloudflared tunnel cctv-pintar → https://cctv.ainulhakim.com
 - [x] **Fase 3** — Aplikasi FastAPI: skeleton, model, auth, login (bcrypt langsung tanpa passlib)
 - [x] **Fase 4** — Logika jadwal (`app/schedule.py`) + unit test, termasuk window lintas tengah malam
 - [x] **Fase 5** — Halaman pantauan (hls.js) + proxy HLS ber-guard + snapshot JPEG
-- [ ] **Fase 6** — Panel admin (kamera, jadwal, user, log)
-- [~] **Fase 7** — Deploy jalan (systemd + tunnel Cloudflare + rate limit login); sisa: uji dari HP & `docs/OPERASIONAL.md`
+- [x] **Fase 6** — Panel admin: CRUD kamera, jadwal akses, pengguna, log & status
+- [x] **Fase 7** — Deploy (systemd + tunnel Cloudflare + hardening + rate limit) & `docs/OPERASIONAL.md`
 
 ## Akses aplikasi (sudah jalan)
 
@@ -54,7 +54,13 @@ cloudflared tunnel cctv-pintar → https://cctv.ainulhakim.com
 - `GET /stream/{slug}/{path}` — proxy HLS ber-guard: 401 tanpa sesi, 404 kamera mati,
   **403 di luar jadwal** (tercatat di `access_logs`)
 - `GET /api/snapshot/{slug}` — JPEG 1 frame dari MediaMTX (cache 5 detik), guard sama
-- `GET /admin/` — placeholder panel admin (fase 6)
+- `GET /admin/` — ringkasan admin (kamera, akses ditolak 24 jam, status MediaMTX, disk)
+- `GET|POST /admin/cameras` — CRUD kamera (kamera baru otomatis policy publik 24 jam)
+- `GET|POST /admin/policies[/{id}]` — atur mode publik/terjadwal per kamera
+- `GET|POST /admin/users[/{id}/...]` — tambah user, reset password, role, aktif/nonaktif, hapus
+- `GET /admin/logs` — log akses (filter aksi/kamera) + status MediaMTX + disk
+
+Panduan operasional lengkap: [`docs/OPERASIONAL.md`](docs/OPERASIONAL.md)
 
 ## Catatan MediaMTX (penting untuk proxy)
 

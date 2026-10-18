@@ -1,0 +1,106 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Log & Status · {{ app_name }}{% endblock %}
+
+{% block admin_content %}
+<h1 class="text-lg font-semibold">Log Akses &amp; Status Sistem</h1>
+
+<div class="mb-5 grid gap-4 lg:grid-cols-3">
+  <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <h2 class="mb-2 font-medium">MediaMTX</h2>
+    {% if mediamtx.error %}
+    <p class="text-sm text-red-300">{{ mediamtx.error }}</p>
+    {% else %}
+    <ul class="space-y-1 text-sm">
+      {% for p in mediamtx.paths %}
+      <li class="flex items-center justify-between gap-2">
+        <span class="text-slate-300">{{ p.name }}</span>
+        <span class="text-xs {% if p.ready %}text-emerald-300{% else %}text-amber-300{% endif %}">
+          {{ 'siap' if p.ready else 'belum siap' }}{% if p.tracks %} · {{ p.tracks }}{% endif %} · {{ p.readers }} penonton
+        </span>
+      </li>
+      {% else %}
+      <li class="text-slate-400">Belum ada path.</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <h2 class="mb-2 font-medium">Disk server</h2>
+    {% if disk.error %}
+    <p class="text-sm text-red-300">{{ disk.error }}</p>
+    {% else %}
+    <p class="text-sm text-slate-300">{{ disk.used_gb }} GB / {{ disk.total_gb }} GB ({{ disk.persen }}%)</p>
+    <p class="text-xs text-slate-500">sisa {{ disk.free_gb }} GB</p>
+    {% endif %}
+  </div>
+  <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <h2 class="mb-2 font-medium">Filter</h2>
+    <form method="get" action="/admin/logs" class="space-y-2 text-sm">
+      <select name="action" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm">
+        <option value="">semua aksi</option>
+        {% for a in aksi %}
+        <option value="{{ a }}" {% if action == a %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+      <select name="camera" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm">
+        <option value="">semua kamera</option>
+        {% for slug in semua_kamera %}
+        <option value="{{ slug }}" {% if camera == slug %}selected{% endif %}>{{ slug }}</option>
+        {% endfor %}
+      </select>
+      <select name="limit" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm">
+        {% for n in [50, 100, 250, 500] %}
+        <option value="{{ n }}" {% if limit == n %}selected{% endif %}>{{ n }} baris</option>
+        {% endfor %}
+      </select>
+      <button class="w-full rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-emerald-400">
+        Tampilkan
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="overflow-x-auto rounded-xl border border-slate-800">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-900/80 text-left text-xs uppercase tracking-wide text-slate-400">
+      <tr>
+        <th class="px-3 py-2">#</th>
+        <th class="px-3 py-2">Waktu (UTC)</th>
+        <th class="px-3 py-2">Aksi</th>
+        <th class="px-3 py-2">User</th>
+        <th class="px-3 py-2">Kamera</th>
+        <th class="px-3 py-2">IP</th>
+        <th class="px-3 py-2">Detail</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in log %}
+      <tr class="border-t border-slate-800">
+        <td class="px-3 py-1.5 text-xs text-slate-500">{{ row.id }}</td>
+        <td class="px-3 py-1.5 text-xs text-slate-300">{{ row.at.strftime('%d/%m %H:%M:%S') }}</td>
+        <td class="px-3 py-1.5">
+          <span class="rounded-full px-2 py-0.5 text-xs
+            {% if row.action.endswith('denied') or row.action == 'login_failed' or row.action == 'login_blocked' %}
+              bg-amber-500/15 text-amber-300
+            {% elif row.action == 'login_ok' %}
+              bg-emerald-500/15 text-emerald-300
+            {% else %}
+              bg-slate-700/40 text-slate-300
+            {% endif %}">{{ row.action }}</span>
+        </td>
+        <td class="px-3 py-1.5 text-slate-300">{{ row.user }}</td>
+        <td class="px-3 py-1.5 text-slate-300">{{ row.camera }}</td>
+        <td class="px-3 py-1.5 text-xs text-slate-400">{{ row.ip }}</td>
+        <td class="px-3 py-1.5 text-xs text-slate-400">{{ row.detail }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="px-3 py-4 text-center text-slate-400">Belum ada log.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="mt-3 text-xs text-slate-500">
+  Menampilkan maksimal {{ limit }} baris terbaru{% if ada_filter %} (terfilter){% endif %} · waktu log disimpan UTC, tampil apa adanya.
+</p>
+{% endblock %}

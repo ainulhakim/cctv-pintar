@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<nav class="mb-5 flex flex-wrap items-center gap-2 text-sm">
+  {% set menu = [
+    ('/admin/', 'Ringkasan'),
+    ('/admin/cameras', 'Kamera'),
+    ('/admin/policies', 'Jadwal Akses'),
+    ('/admin/users', 'Pengguna'),
+    ('/admin/logs', 'Log & Status')
+  ] %}
+  {% for href, label in menu %}
+  <a href="{{ href }}"
+     class="rounded-md border px-3 py-1.5 {% if aktif == href %}border-emerald-500 bg-emerald-500/10 text-emerald-300{% else %}border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
+    {{ label }}
+  </a>
+  {% endfor %}
+  <a href="/" class="ml-auto rounded-md border border-slate-700 px-3 py-1.5 text-slate-300 hover:bg-slate-800">
+    Lihat pantauan →
+  </a>
+</nav>
+
+{% if request.query_params.get('ok') %}
+<div class="mb-4 rounded-lg border border-emerald-800 bg-emerald-950/50 px-3 py-2 text-sm text-emerald-200">
+  {{ request.query_params.get('ok') }}
+</div>
+{% endif %}
+{% if request.query_params.get('err') %}
+<div class="mb-4 rounded-lg border border-red-800 bg-red-950/50 px-3 py-2 text-sm text-red-200">
+  {{ request.query_params.get('err') }}
+</div>
+{% endif %}
+
+{% block admin_content %}{% endblock %}
+{% endblock %}

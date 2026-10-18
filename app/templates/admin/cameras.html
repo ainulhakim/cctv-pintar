@@ -1,0 +1,115 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Kamera · {{ app_name }}{% endblock %}
+
+{% block admin_content %}
+<h1 class="text-lg font-semibold">Kamera</h1>
+<p class="mb-5 text-sm text-slate-400">
+  <code class="rounded bg-slate-800 px-1">stream_key</code> = nama path di MediaMTX (bukan kredensial kamera).
+</p>
+
+<div class="space-y-3">
+  {% for cam in cameras %}
+  <details class="rounded-xl border border-slate-800 bg-slate-900/60">
+    <summary class="flex cursor-pointer flex-wrap items-center gap-3 px-4 py-3">
+      <span class="font-medium">{{ cam.name }}</span>
+      <span class="text-xs text-slate-400">/{{ cam.slug }} · key: {{ cam.stream_key }} · urutan {{ cam.sort }}</span>
+      <span class="ml-auto flex items-center gap-2 text-xs">
+        {% if not cam.enabled %}
+        <span class="rounded-full bg-slate-700/40 px-2 py-0.5 text-slate-300">NONAKTIF</span>
+        {% elif cam.open %}
+        <span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300">LIVE</span>
+        {% else %}
+        <span class="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300">TERTUTUP</span>
+        {% endif %}
+        <span class="text-slate-500">{{ cam.policy }}</span>
+      </span>
+    </summary>
+
+    <form method="post" action="/admin/cameras/{{ cam.id }}"
+          class="grid gap-3 border-t border-slate-800 px-4 py-4 sm:grid-cols-2 lg:grid-cols-3">
+      <label class="text-sm">Slug
+        <input name="slug" value="{{ cam.slug }}" required
+               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+      </label>
+      <label class="text-sm">Nama
+        <input name="name" value="{{ cam.name }}" required
+               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+      </label>
+      <label class="text-sm">Lokasi
+        <input name="location" value="{{ cam.location or '' }}"
+               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+      </label>
+      <label class="text-sm">Stream key (MediaMTX)
+        <input name="stream_key" value="{{ cam.stream_key }}" required
+               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+      </label>
+      <label class="text-sm">Urutan tampil
+        <input name="sort" type="number" value="{{ cam.sort }}"
+               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+      </label>
+      <div class="flex items-end gap-3">
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="enabled" value="1" {% if cam.enabled %}checked{% endif %}
+                 class="h-4 w-4 rounded border-slate-600 bg-slate-950">
+          Aktif
+        </label>
+        <button class="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400">
+          Simpan
+        </button>
+      </div>
+    </form>
+
+    <div class="border-t border-slate-800 px-4 py-3 text-right">
+      <form method="post" action="/admin/cameras/{{ cam.id }}/delete"
+            onsubmit="return confirm('Hapus kamera {{ cam.name }}? Policy dan jejak lognya ikut dibersihkan.');">
+        <button class="rounded-md border border-red-800 px-3 py-1.5 text-sm text-red-300 hover:bg-red-950/50">
+          Hapus kamera
+        </button>
+      </form>
+    </div>
+  </details>
+  {% endfor %}
+</div>
+
+{% if not cameras %}
+<p class="mb-4 text-sm text-slate-400">Belum ada kamera.</p>
+{% endif %}
+
+<form method="post" action="/admin/cameras"
+      class="mt-8 grid gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4 sm:grid-cols-2 lg:grid-cols-3">
+  <h2 class="sm:col-span-2 lg:col-span-3 font-medium">Tambah kamera</h2>
+  <label class="text-sm">Slug
+    <input name="slug" placeholder="utara" required
+           class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+  </label>
+  <label class="text-sm">Nama
+    <input name="name" placeholder="Kamera Utara" required
+           class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+  </label>
+  <label class="text-sm">Lokasi
+    <input name="location" placeholder="Area Utara"
+           class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+  </label>
+  <label class="text-sm">Stream key (MediaMTX)
+    <input name="stream_key" placeholder="utara" required
+           class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+  </label>
+  <label class="text-sm">Urutan tampil
+    <input name="sort" type="number" value="0"
+           class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+  </label>
+  <div class="flex items-end gap-3">
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="enabled" value="1" checked
+             class="h-4 w-4 rounded border-slate-600 bg-slate-950">
+      Aktif
+    </label>
+    <button class="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400">
+      Tambahkan
+    </button>
+  </div>
+  <p class="sm:col-span-2 lg:col-span-3 text-xs text-slate-500">
+    Kamera baru otomatis diberi policy <strong>publik 24 jam</strong> — atur di menu Jadwal Akses.
+  </p>
+</form>
+{% endblock %}

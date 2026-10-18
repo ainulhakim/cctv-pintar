@@ -1,0 +1,95 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Jadwal Akses · {{ app_name }}{% endblock %}
+
+{% block admin_content %}
+<h1 class="text-lg font-semibold">Jadwal Akses</h1>
+<p class="mb-1 text-sm text-slate-400">
+  Waktu server: {{ sekarang }} {{ tz_name }} · hari mengikuti zona waktu kamera.
+</p>
+<p class="mb-5 text-xs text-slate-500">
+  Window boleh melewati tengah malam (mis. 22:00–05:00 → dini hari ikut hari sebelumnya).
+  Jam mulai = jam selesai berarti <strong>24 jam</strong> pada hari terpilih.
+</p>
+
+<div class="space-y-4">
+  {% for cam in cameras %}
+  <form method="post" action="/admin/policies/{{ cam.id }}"
+        class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <div class="mb-3 flex flex-wrap items-center gap-3">
+      <span class="font-medium">{{ cam.name }}</span>
+      <span class="text-xs text-slate-400">/{{ cam.slug }}</span>
+      <span class="ml-auto flex items-center gap-2 text-xs">
+        {% if not cam.enabled %}
+        <span class="rounded-full bg-slate-700/40 px-2 py-0.5 text-slate-300">KAMERA NONAKTIF</span>
+        {% elif cam.open %}
+        <span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300">SEKARANG TERBUKA</span>
+        {% else %}
+        <span class="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300">SEKARANG TERTUTUP</span>
+        {% endif %}
+        <span class="text-slate-500">berikutnya: {{ cam.next_open }}</span>
+      </span>
+    </div>
+
+    <div class="grid gap-4 lg:grid-cols-3">
+      <fieldset class="space-y-2">
+        <legend class="mb-1 text-xs uppercase tracking-wide text-slate-400">Mode akses</legend>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="radio" name="mode" value="public" {% if cam.mode == 'public' %}checked{% endif %}
+                 class="h-4 w-4">
+          Publik 24 jam
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="radio" name="mode" value="scheduled" {% if cam.mode == 'scheduled' %}checked{% endif %}
+                 class="h-4 w-4">
+          Terjadwal
+        </label>
+        <label class="mt-2 flex items-center gap-2 text-sm">
+          <input type="checkbox" name="active" value="1" {% if cam.active %}checked{% endif %}
+                 class="h-4 w-4 rounded border-slate-600 bg-slate-950">
+          Policy aktif
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend class="mb-1 text-xs uppercase tracking-wide text-slate-400">Hari (Senin–Minggu)</legend>
+        <div class="flex flex-wrap gap-2">
+          {% set dipilih = cam.days.split(',') if cam.days else [] %}
+          {% for nomor, nama in hari %}
+          <label class="flex items-center gap-1.5 rounded-md border border-slate-700 px-2 py-1 text-xs">
+            <input type="checkbox" name="days" value="{{ nomor }}"
+                   {% if nomor|string in dipilih %}checked{% endif %}
+                   class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950">
+            {{ nama[:3] }}
+          </label>
+          {% endfor %}
+        </div>
+        <p class="mt-2 text-xs text-slate-500">Dipakai hanya pada mode terjadwal.</p>
+      </fieldset>
+
+      <fieldset class="grid grid-cols-2 gap-3">
+        <legend class="mb-1 text-xs uppercase tracking-wide text-slate-400">Jam</legend>
+        <label class="text-sm">Mulai
+          <input type="time" name="start" value="{{ cam.start }}"
+                 class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+        </label>
+        <label class="text-sm">Selesai
+          <input type="time" name="end" value="{{ cam.end }}"
+                 class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+        </label>
+        <p class="col-span-2 text-xs text-slate-500">Ringkas: {{ cam.ringkasan }}</p>
+      </fieldset>
+    </div>
+
+    <div class="mt-4 text-right">
+      <button class="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400">
+        Simpan jadwal
+      </button>
+    </div>
+  </form>
+  {% endfor %}
+</div>
+
+{% if not cameras %}
+<p class="text-sm text-slate-400">Belum ada kamera. <a class="text-emerald-300 hover:underline" href="/admin/cameras">Tambah kamera dulu</a>.</p>
+{% endif %}
+{% endblock %}

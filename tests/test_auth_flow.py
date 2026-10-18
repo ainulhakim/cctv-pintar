@@ -95,7 +95,7 @@ def test_admin_bisa_buka_admin(client, admin_user):
     login(client, "admin", ADMIN_PW)
     resp = client.get("/admin/", headers={"accept": "text/html"})
     assert resp.status_code == 200
-    assert "Panel Admin" in resp.text
+    assert "Ringkasan" in resp.text
 
 
 def test_logout_hapus_sesi(client, admin_user):
