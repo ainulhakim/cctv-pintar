@@ -14,6 +14,9 @@ ACTION_LOGIN_FAILED = "login_failed"
 ACTION_LOGIN_BLOCKED = "login_blocked"
 ACTION_STREAM_DENIED = "stream_denied"
 ACTION_SNAPSHOT_DENIED = "snapshot_denied"
+ACTION_OVERRIDE_GRANTED = "override_granted"
+ACTION_OVERRIDE_FAILED = "override_failed"
+ACTION_OVERRIDE_BLOCKED = "override_blocked"
 
 
 def client_ip(request: Request) -> Optional[str]:

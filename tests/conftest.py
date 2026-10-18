@@ -26,6 +26,7 @@ os.environ["COOKIE_SECURE"] = "0"
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app import override, snapshots  # noqa: E402
 from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.main import create_app  # noqa: E402
 from app.models import ROLE_ADMIN, ROLE_VIEWER, User  # noqa: E402
@@ -41,6 +42,8 @@ def fresh_db():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     login_limiter.reset_all()
+    override.override_limiter.reset_all()
+    snapshots.cache_clear()
     yield
 
 

@@ -107,6 +107,7 @@ def login_submit(
 def _logout_response() -> RedirectResponse:
     response = RedirectResponse("/login", status_code=303)
     response.delete_cookie(settings.session_cookie, path="/")
+    response.delete_cookie("cctv_override", path="/")  # cabut override admin
     return response
 
 

@@ -67,6 +67,7 @@ class Settings:
 
         self.tz_name = os.getenv("TZ_NAME", "Asia/Jakarta").strip() or "Asia/Jakarta"
         self.session_max_age = int(os.getenv("SESSION_MAX_AGE", "43200"))  # 12 jam
+        self.override_ttl = int(os.getenv("OVERRIDE_TTL", "1800"))  # 30 menit
         self.session_cookie = os.getenv("SESSION_COOKIE", "cctv_session").strip() or "cctv_session"
         self.cookie_secure = _bool_env("COOKIE_SECURE", self.env == "production")
 

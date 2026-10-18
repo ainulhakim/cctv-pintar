@@ -54,6 +54,8 @@ cloudflared tunnel cctv-pintar → https://cctv.ainulhakim.com
 - `GET /stream/{slug}/{path}` — proxy HLS ber-guard: 401 tanpa sesi, 404 kamera mati,
   **403 di luar jadwal** (tercatat di `access_logs`)
 - `GET /api/snapshot/{slug}` — JPEG 1 frame dari MediaMTX (cache 5 detik), guard sama
+- `POST /api/cameras/{slug}/override` — **admin** membuka kamera tertutup sementara dengan
+  password sendiri (per kamera, `OVERRIDE_TTL` detik, tercatat di log, rate limit 5/5 menit)
 - `GET /admin/` — ringkasan admin (kamera, akses ditolak 24 jam, status MediaMTX, disk)
 - `GET|POST /admin/cameras` — CRUD kamera (kamera baru otomatis policy publik 24 jam)
 - `GET|POST /admin/policies[/{id}]` — atur mode publik/terjadwal per kamera

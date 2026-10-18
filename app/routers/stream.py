@@ -22,12 +22,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from .. import audit
+from .. import access, audit
 from ..config import settings
 from ..db import get_db
 from ..deps import get_current_user
 from ..models import Camera, User
-from ..schedule import is_open
 
 router = APIRouter(tags=["stream"])
 
@@ -91,7 +90,9 @@ def _ambil_kamera(db: Session, slug: str) -> Camera:
 
 
 def _wajib_terbuka(db: Session, request: Request, kamera: Camera, user: User, action: str) -> None:
-    if is_open(kamera.policy):
+    """Lolos kalau kamera sedang dalam jadwal, atau admin punya override aktif."""
+    keputusan = access.keputusan_akses(request, user, kamera)
+    if keputusan != access.CLOSED:
         return
     audit.record(
         db,

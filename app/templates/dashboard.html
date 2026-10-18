@@ -17,17 +17,45 @@
 
 <div id="grid" class="mt-6 grid gap-4 md:grid-cols-2">
   {% for cam in cameras %}
+  {% set bisa_tonton = cam.open or cam.override_active %}
   <article class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60"
            data-slug="{{ cam.slug }}"
            data-stream="{{ cam.stream_url }}"
-           data-snapshot="{{ cam.snapshot_url }}">
+           data-snapshot="{{ cam.snapshot_url }}"
+           data-can-override="{{ '1' if cam.can_override else '0' }}">
     <div class="relative aspect-video bg-black">
       <video class="h-full w-full" controls muted playsinline preload="none"></video>
-      <div class="overlay absolute inset-0 hidden flex-col items-center justify-center gap-1 bg-slate-950/90 px-6 text-center">
+
+      <div class="overlay absolute inset-0 {{ 'hidden' if bisa_tonton else 'flex' }} flex-col items-center justify-center gap-2 bg-slate-950/90 px-6 text-center">
         <span class="text-sm font-semibold text-amber-300">Tertutup</span>
-        <span class="overlay-detail text-xs text-slate-300"></span>
+        <span class="overlay-detail text-xs text-slate-300">
+          {% if cam.next_open_label %}Dibuka kembali {{ cam.next_open_label }}{% else %}Tidak ada jadwal buka aktif{% endif %}
+        </span>
+
+        {% if cam.can_override %}
+        <form class="override-form mt-1 w-full max-w-xs space-y-2">
+          <label class="block text-xs text-slate-300">Buka sebagai admin (wajib password Anda)</label>
+          <div class="flex gap-2">
+            <input name="password" type="password" required autocomplete="current-password"
+                   placeholder="password admin"
+                   class="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm">
+            <button type="submit"
+                    class="shrink-0 rounded-md bg-amber-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-amber-400">
+              Buka
+            </button>
+          </div>
+          <p class="override-pesan text-xs text-red-300"></p>
+        </form>
+        {% else %}
+        <span class="text-xs text-slate-500">
+          {% if user.is_admin %}Kamera terbuka sesuai jadwal — tidak perlu override.{% else %}Akses di luar jadwal hanya untuk admin.{% endif %}
+        </span>
+        {% endif %}
       </div>
+
+      <span class="override-badge absolute left-2 top-2 hidden rounded-full bg-sky-500/20 px-2 py-0.5 text-xs font-semibold text-sky-200"></span>
     </div>
+
     <div class="flex items-start justify-between gap-3 p-3">
       <div class="min-w-0">
         <div class="truncate font-medium">{{ cam.name }}</div>
@@ -49,6 +77,7 @@
 <p class="mt-6 text-xs text-slate-500">
   Aliran video hanya keluar lewat endpoint ber-autentikasi milik aplikasi ini —
   kredensial kamera tidak pernah dikirim ke browser.
+  {% if user.is_admin %}Override admin berlaku sementara (30 menit) dan tercatat di log.{% endif %}
 </p>
 {% endblock %}
 
@@ -59,17 +88,21 @@
   const STATUS_URL = "/api/cameras/status";
   const REFRESH_MS = 30000;
   const pemutar = new Map();
-
   const kartu = {};
+
   document.querySelectorAll("article[data-slug]").forEach(function (el) {
     kartu[el.dataset.slug] = el;
   });
 
-  function setPill(el, terbuka) {
-    el.classList.remove("bg-emerald-500/15", "text-emerald-300", "bg-amber-500/15", "text-amber-300");
-    if (terbuka) {
+  function setPill(el, cam) {
+    el.classList.remove("bg-emerald-500/15", "text-emerald-300", "bg-amber-500/15",
+                        "text-amber-300", "bg-sky-500/15", "text-sky-200");
+    if (cam.open) {
       el.classList.add("bg-emerald-500/15", "text-emerald-300");
       el.textContent = "LIVE";
+    } else if (cam.override_active) {
+      el.classList.add("bg-sky-500/15", "text-sky-200");
+      el.textContent = "OVERRIDE";
     } else {
       el.classList.add("bg-amber-500/15", "text-amber-300");
       el.textContent = "TERTUTUP";
@@ -99,15 +132,13 @@
     if (window.Hls && window.Hls.isSupported()) {
       const hls = new window.Hls({ lowLatencyMode: true, liveSyncDurationCount: 2 });
       hls.on(window.Hls.Events.ERROR, function (_evt, data) {
-        if (data && data.fatal) {
-          lepasPemutar(slug);
-        }
+        if (data && data.fatal) { lepasPemutar(slug); }
       });
       hls.loadSource(src);
       hls.attachMedia(video);
       pemutar.set(slug, hls);
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = src; /* Safari: HLS native */
+      video.src = src;  /* Safari: HLS native */
       pemutar.set(slug, { destroy: function () {} });
     }
   }
@@ -117,9 +148,19 @@
     if (!el) return;
     const overlay = el.querySelector(".overlay");
     const detail = el.querySelector(".overlay-detail");
-    setPill(el.querySelector(".pill"), cam.open);
+    const badge = el.querySelector(".override-badge");
+    const bisaTonton = cam.open || cam.override_active;
 
-    if (cam.open) {
+    setPill(el.querySelector(".pill"), cam);
+
+    if (cam.override_active && !cam.open) {
+      badge.textContent = "OVERRIDE ADMIN" + (cam.override_until ? " s/d " + cam.override_until : "");
+      badge.classList.remove("hidden");
+    } else {
+      badge.classList.add("hidden");
+    }
+
+    if (bisaTonton) {
       overlay.classList.add("hidden");
       overlay.classList.remove("flex");
       pasangPemutar(cam.slug);
@@ -132,6 +173,40 @@
       overlay.classList.add("flex");
     }
   }
+
+  async function kirimOverride(slug, form) {
+    const el = kartu[slug];
+    const pesan = el.querySelector(".override-pesan");
+    const input = form.querySelector("input[name=password]");
+    pesan.textContent = "";
+    const data = new FormData();
+    data.set("password", input.value);
+    try {
+      const resp = await fetch("/api/cameras/" + slug + "/override", {
+        method: "POST",
+        body: data,
+        headers: { accept: "application/json" },
+      });
+      if (resp.ok) {
+        input.value = "";
+        await segarkan();
+        return;
+      }
+      const body = await resp.json().catch(function () { return {}; });
+      pesan.textContent = body.detail || ("Gagal membuka (" + resp.status + ")");
+    } catch (e) {
+      pesan.textContent = "Gagal menghubungi server.";
+    }
+  }
+
+  Object.keys(kartu).forEach(function (slug) {
+    const form = kartu[slug].querySelector(".override-form");
+    if (!form) return;
+    form.addEventListener("submit", function (evt) {
+      evt.preventDefault();
+      kirimOverride(slug, form);
+    });
+  });
 
   async function segarkan() {
     try {

@@ -46,6 +46,19 @@ Menu **Jadwal Akses** → pilih kamera:
 Di luar jadwal, penonton melihat overlay **"Tertutup"** + waktu buka berikutnya, dan endpoint
 stream/snapshot membalas **403** (tercatat di log).
 
+### Override admin (buka kamera tertutup sementara)
+
+Di halaman pantauan, admin melihat tombol **"Buka"** pada kartu yang berstatus TERTUTUP:
+
+1. Masukkan **password akun admin yang sedang login** (bukan password admin lain).
+2. Kalau benar, kamera itu terbuka untuk **30 menit** (ubah lewat `OVERRIDE_TTL` di `.env`),
+   kartu menampilkan badge **OVERRIDE ADMIN** + jam berakhirnya.
+3. Override berlaku **per kamera** dan hanya untuk akun tersebut — kamera lain tetap tertutup,
+   dan user lain tetap ditolak.
+4. Semua percobaan dicatat: `override_granted`, `override_failed`, `override_blocked`
+   (maksimal **5 percobaan salah / 5 menit** per user+IP → balasan `429`).
+5. Logout otomatis mencabut override.
+
 ## 4. Kelola pengguna
 
 Menu **Pengguna**:
