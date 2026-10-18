@@ -32,7 +32,7 @@ cloudflared tunnel cctv-pintar → https://cctv.ainulhakim.com
 - [x] **Fase 2** — MediaMTX + transcode on-demand + systemd service
 - [x] **Fase 3** — Aplikasi FastAPI: skeleton, model, auth, login (bcrypt langsung tanpa passlib)
 - [x] **Fase 4** — Logika jadwal (`app/schedule.py`) + unit test, termasuk window lintas tengah malam
-- [ ] **Fase 5** — Halaman pantauan viewer + proxy HLS ber-guard
+- [x] **Fase 5** — Halaman pantauan (hls.js) + proxy HLS ber-guard + snapshot JPEG
 - [ ] **Fase 6** — Panel admin (kamera, jadwal, user, log)
 - [~] **Fase 7** — Deploy jalan (systemd + tunnel Cloudflare + rate limit login); sisa: uji dari HP & `docs/OPERASIONAL.md`
 
@@ -42,7 +42,28 @@ cloudflared tunnel cctv-pintar → https://cctv.ainulhakim.com
 - Publik: `https://cctv.ainulhakim.com` (tunnel `cctv-pintar`, **200 OK**)
 - Login awal: user `admin`, password ada di `/home/ainul/cctv-pintar/.env`
 - `/api/docs` **mati** saat `APP_ENV=production`
-- Belum: halaman pantauan (fase 5) — `/` masih placeholder statistik
+- Halaman pantauan langsung: grid kamera, hls.js, overlay "Tertutup + jadwal buka berikutnya",
+  status auto-refresh 30 detik
+
+## Endpoint
+
+- `GET /healthz` — status aplikasi (tanpa auth)
+- `GET /login`, `POST /login`, `POST|GET /logout` — autentikasi
+- `GET /` — halaman pantauan (wajib login)
+- `GET /api/cameras/status` — JSON status kamera + jadwal (wajib login)
+- `GET /stream/{slug}/{path}` — proxy HLS ber-guard: 401 tanpa sesi, 404 kamera mati,
+  **403 di luar jadwal** (tercatat di `access_logs`)
+- `GET /api/snapshot/{slug}` — JPEG 1 frame dari MediaMTX (cache 5 detik), guard sama
+- `GET /admin/` — placeholder panel admin (fase 6)
+
+## Catatan MediaMTX (penting untuk proxy)
+
+- Playlist pertama dibalas **302 ke `<url>?cookieCheck=1`**. Kalau proxy meneruskan cookie
+  `cookieCheck`, MediaMTX menandai playlist **tanpa `?session=`** dan variannya gagal
+  (`session not found`). Karena itu `app/routers/stream.py` mengikuti redirect **manual**
+  dan **tidak pernah** mengirim cookie ke MediaMTX.
+- URI di manifest bersifat relatif dan sudah membawa `?session=` → otomatis tetap lewat proxy.
+- Snapshot memakai RTSP lokal MediaMTX (`rtsp://127.0.0.1:8554/<stream_key>`), bukan kredensial kamera.
 
 Detail rencana: [`docs/plans/2026-10-17-cctv-portal.md`](docs/plans/2026-10-17-cctv-portal.md)
 
