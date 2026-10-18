@@ -105,14 +105,29 @@ cd ~/cctv-pintar && .venv/bin/python scripts/set_env.py KEY=VALUE
 cd ~/cctv-pintar && .venv/bin/python -m pytest -q
 ```
 
-**Deploy dari workspace (Hermes)**:
+**Deploy dari workspace (Hermes) — alur git (sejak 19 Okt 2026)**:
+
+Folder `/home/ainul/cctv-pintar` di rumah sudah bukan lagi copy rsync, melainkan **clone git**
+(read-only lewat HTTPS publik `https://github.com/ainulhakim/cctv-pintar.git`). Jadi sumber
+kebenaran tunggal = repo GitHub, dan `git pull` bisa dipakai kapan saja.
 
 ```bash
 cd /home/ubuntu/cctv-pintar
-RSSH_PASS=<PASSWORD-SSH> ./scripts/deploy.sh      # rsync + restart service
+RSSH_PASS=<PASSWORD-SSH> ./scripts/deploy_git.sh              # push ke GitHub -> rumah pull + restart
+RSSH_PASS=<PASSWORD-SSH> RUN_TESTS=1 ./scripts/deploy_git.sh  # sekalian pytest + smoke di rumah
 ```
 
-Backup repo: `git push origin main` (`github.com/ainulhakim/cctv-pintar`).
+Dari sisi rumah (manual / inspeksi):
+
+```bash
+cd ~/cctv-pintar
+SUDO_PASS=<PASSWORD-SSH> bash scripts/pull_deploy.sh          # git pull + restart + cek /healthz
+git log --oneline -1 && git status --short              # pastikan sama dengan GitHub
+```
+
+`scripts/pull_deploy.sh` idempotent: kalau `.git` belum ada, folder otomatis dijadikan clone
+(`.env`, `.venv`, `data/`, `deploy/mediamtx.yml` **tidak** tersentuh karena di-gitignore).
+`scripts/deploy.sh` (rsync) dipertahankan hanya sebagai cadangan/bootstrap.
 
 ## 7. Troubleshooting
 
@@ -126,9 +141,12 @@ Backup repo: `git push origin main` (`github.com/ainulhakim/cctv-pintar`).
 | Lupa password admin | `cd ~/cctv-pintar && NEW_PASSWORD='rahasia-baru' .venv/bin/python scripts/set_password.py admin` (di server rumah). `scripts/seed.py` **tidak** me-reset user yang sudah ada |
 | Perlu admin baru darurat | `cd ~/cctv-pintar && NEW_PASSWORD='rahasia-baru' .venv/bin/python scripts/set_password.py admin2 --create-admin` |
 | Kamera offline | Cek Wi-Fi rumah & daya kamera; `ping <IP-KAMERA-1>` dari server rumah |
+| Laptop mendadak mati / stream hilang | Cek daya: `upower -i /org/freedesktop/UPower/devices/battery_BAT0` → `state` harus *charging*, `cat /sys/class/power_supply/AC/online` harus `1` |
 
 Catatan: laptop server rumah wajib tetap menyala dan **tidak boleh sleep** (sudah dimatikan
-suspend/hibernate-nya di Fase 1).
+suspend/hibernate-nya di Fase 1). **Wajib selalu tersambung charger** — baterai ThinkPad ini sudah
+tua (kapasitas penuh hanya ~15,5 Wh dari desain 47,5 Wh ≈ **33% kesehatan**), jadi tanpa adaptor
+server hanya bertahan sekitar **1–3 jam**.
 
 ## 8. Keamanan (yang sudah berlaku)
 
