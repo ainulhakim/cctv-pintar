@@ -38,6 +38,20 @@ paths:
     runOnDemandCloseAfter: 15s
     rtspTransport: tcp
 
+  # Kamera 3 — XM (ONVIF :8899) — kredensial RTSP internal dari ONVIF GetStreamUri
+  # URI XM memakai form /user=USER_password=PASS_channel=0_stream=N&onvif=0.sdp
+  balai:
+    runOnDemand: >
+      ffmpeg -hide_banner -loglevel warning -rtsp_transport tcp
+      -i "rtsp://BALAI_IP:554/user=BALAI_RTSP_USER_password=BALAI_RTSP_PASS_channel=0_stream=1&onvif=0.sdp?real_stream"
+      -c:v libx264 -preset veryfast -tune zerolatency -profile:v main
+      -b:v 600k -maxrate 700k -bufsize 1200k -g 40 -an
+      -f rtsp rtsp://127.0.0.1:8554/balai
+    runOnDemandRestart: yes
+    runOnDemandStartTimeout: 25s
+    runOnDemandCloseAfter: 15s
+    rtspTransport: tcp
+
   # Kamera 2
   selatan:
     runOnDemand: >
