@@ -15,7 +15,7 @@ def buat_kamera(db, slug="utara", stream_key="utara", enabled=True, **policy_kwa
     kamera = Camera(
         slug=slug,
         name=f"Kamera {slug}",
-        location="DM VI",
+        location="Area Uji",
         stream_key=stream_key,
         enabled=enabled,
         sort=0,

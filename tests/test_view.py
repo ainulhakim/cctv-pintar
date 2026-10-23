@@ -14,7 +14,7 @@ def buat_kamera(db, slug="utara", name=None, mode=MODE_PUBLIC, days="0,1,2,3,4,5
     kamera = Camera(
         slug=slug,
         name=name or f"Kamera {slug.title()}",
-        location="DM VI",
+        location="Area Uji",
         stream_key=slug,
         enabled=enabled,
         sort=sort,
