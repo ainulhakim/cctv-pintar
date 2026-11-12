@@ -72,12 +72,19 @@ def main() -> int:
             cek("halaman login tampil", r.status_code == 200 and "Masuk" in r.text, str(r.status_code))
 
             r = c.get("/")
-            cek("tanpa sesi -> 401", r.status_code == 401, str(r.status_code))
+            if settings.public_view:
+                # PUBLIC_VIEW=1: halaman pantauan memang publik, jadi bukan 401.
+                cek("viewer publik terbuka tanpa sesi", r.status_code == 200, str(r.status_code))
+            else:
+                cek("tanpa sesi -> 401", r.status_code == 401, str(r.status_code))
 
             r = c.get("/", headers={"accept": "text/html"})
-            cek("tanpa sesi (browser) -> redirect /login",
-                r.status_code == 303 and r.headers.get("location") == "/login",
-                f"{r.status_code} {r.headers.get('location')}")
+            if settings.public_view:
+                cek("viewer publik (browser) -> 200", r.status_code == 200, str(r.status_code))
+            else:
+                cek("tanpa sesi (browser) -> redirect /login",
+                    r.status_code == 303 and r.headers.get("location") == "/login",
+                    f"{r.status_code} {r.headers.get('location')}")
 
             if not settings.admin_password:
                 cek("kredensial admin tersedia", False, "ADMIN_PASSWORD kosong")
@@ -95,7 +102,10 @@ def main() -> int:
                 r = c.post("/logout")
                 cek("logout -> redirect /login", r.status_code == 303 and r.headers.get("location") == "/login")
                 r = c.get("/")
-                cek("sesi hilang setelah logout", r.status_code == 401, str(r.status_code))
+                if settings.public_view:
+                    cek("setelah logout viewer tetap publik (200)", r.status_code == 200, str(r.status_code))
+                else:
+                    cek("sesi hilang setelah logout", r.status_code == 401, str(r.status_code))
 
             for nama in ("X-Frame-Options", "X-Content-Type-Options"):
                 r = c.get("/healthz")

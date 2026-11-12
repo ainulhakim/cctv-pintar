@@ -74,8 +74,6 @@ if [[ "$RUN_TESTS" == "1" ]]; then
   [[ -x "$PY" ]] || PY="python3"
   echo ">> pytest"
   "$PY" -m pytest -q
-  echo ">> smoke"
-  "$PY" scripts/smoke.py
 fi
 
 # PENTING: jangan pakai `systemctl list-unit-files | grep -q` — dengan `set -o pipefail`,
@@ -92,6 +90,15 @@ if [[ "$LOAD_STATE" == "loaded" ]]; then
   systemctl is-active "$SERVICE"
   echo ">> health: $HEALTH_URL"
   if curl -fsS --max-time 10 "$HEALTH_URL"; then echo; else echo "!! health check gagal — periksa: journalctl -u $SERVICE -n 50 --no-pager"; fi
+  # Smoke dijalankan SETELAH restart: kalau smoke gagal lebih awal (set -e),
+  # kode baru sudah terlanjur di-pull tapi proses lama masih jalan — itu lebih buruk.
+  # Smoke bersifat verifikasi, bukan gerbang restart.
+  if [[ "$RUN_TESTS" == "1" ]]; then
+    echo ">> smoke"
+    PY=".venv/bin/python"
+    [[ -x "$PY" ]] || PY="python3"
+    "$PY" scripts/smoke.py || echo "!! smoke ada yang gagal — cek output di atas"
+  fi
 else
   echo "!! unit ${SERVICE}.service tidak ditemukan (LoadState=${LOAD_STATE:-kosong}) — lewati restart"
 fi
