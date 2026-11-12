@@ -1,0 +1,11 @@
+[Unit]
+Description=Jalankan recycle rekaman CCTV tiap 5 menit
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=cctv-recycle.service
+
+[Install]
+WantedBy=timers.target

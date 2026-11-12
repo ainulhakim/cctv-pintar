@@ -1,0 +1,10 @@
+[Unit]
+Description=CCTV Pintar — recycle rekaman sesuai kuota
+After=local-fs.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/cctv-record/quota.env
+ExecStart=/usr/bin/python3 /home/ainul/cctv-pintar/scripts/quota_recycle.py --root /srv/cctv-rec --quota-gb ${RECORD_QUOTA_GB} --high-watermark ${RECORD_HIGH_WATERMARK} --retention-days ${RECORD_RETENTION_DAYS}
+Nice=10
+IOSchedulingClass=idle

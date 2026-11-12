@@ -1,0 +1,25 @@
+[Unit]
+Description=CCTV Pintar recorder untuk kamera %i
+After=network-online.target mediamtx.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# EnvironmentFile berisi CAM_URL per kamera, mis:
+#   /etc/cctv-record/utara.env  ->  CAM_URL=rtsp://...
+EnvironmentFile=/etc/cctv-record/%i.env
+Environment=CAM_NAME=%i
+Environment=OUT_DIR=/srv/cctv-rec
+Environment=SEGMENT_SECONDS=3600
+Environment=QUALITY=sub
+ExecStart=/home/ainul/cctv-pintar/scripts/recorder.sh
+Restart=always
+RestartSec=10
+# recorder hanya menulis ke volume rekaman; batasi supaya disk sistem aman
+ProtectSystem=strict
+ReadWritePaths=/srv/cctv-rec
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
