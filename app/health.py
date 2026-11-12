@@ -89,14 +89,14 @@ def _mulai_probe(stream_key: str, timeout: float) -> None:
     ).start()
 
 
-def state(stream_key: str, publisher_aktif: bool) -> str:
+def state(stream_key: str, publisher_aktif: bool, boleh_probe: bool = True) -> str:
     """Status satu kamera, tanpa pernah memblokir pemanggil."""
     if publisher_aktif:
         with _guard:
             _hasil[stream_key] = (time.time(), LIVE)
         return LIVE
 
-    if not settings.live_probe:
+    if not settings.live_probe or not boleh_probe:
         return SIAP
 
     sekarang = time.time()

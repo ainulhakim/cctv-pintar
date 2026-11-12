@@ -45,15 +45,23 @@ def _publisher_map(timeout: float = 2.0) -> dict:
     return hasil
 
 
-def _status_stream(timeout: float = 2.0) -> dict:
+def _status_stream(timeout: float = 2.0, boleh_probe=None) -> dict:
     """Peta stream_key -> state: `live` / `siap` / `offline`.
 
     `offline` hanya diberikan kalau probe aktif gagal (kamera/relay benar-benar
     tidak mengirim gambar). kondisi "tidak diketahui" dilaporkan `siap`, karena
     kamera runOnDemand yang sedang siaga bukan kamera yang mati.
+
+    `boleh_probe` (callable stream_key -> bool) membatasi probe ke kamera yang
+    memang sedang dalam jadwal buka — supaya kamera tertutup tidak ditarik
+    terus-menerus hanya demi badge.
     """
     publisher = _publisher_map(timeout)
-    return {nama: health.state(nama, aktif) for nama, aktif in publisher.items()}
+    hasil = {}
+    for nama, aktif in publisher.items():
+        izin = True if boleh_probe is None else bool(boleh_probe(nama))
+        hasil[nama] = health.state(nama, aktif, boleh_probe=izin)
+    return hasil
 
 
 def _label_waktu(waktu) -> Optional[str]:
@@ -106,6 +114,15 @@ def camera_payload(kamera: Camera, user: Optional[User] = None, request: Request
     }
 
 
+def _izin_probe(kamera, sekarang):
+    """Hanya probe kamera yang memang sedang boleh ditonton (jadwal buka).
+
+    Kamera tertutup tidak perlu ditarik dari MediaMTX hanya demi badge status.
+    """
+    peta = {k.stream_key: is_open(k.policy, sekarang) for k in kamera}
+    return lambda stream_key: peta.get(stream_key, False)
+
+
 def _daftar_kamera(db: Session):
     return (
         db.query(Camera)
@@ -130,7 +147,7 @@ def dashboard(
 ):
     sekarang = local_now(settings.tz_name)
     kamera = _daftar_kamera(db)
-    live = _status_stream()
+    live = _status_stream(boleh_probe=_izin_probe(kamera, sekarang))
     return templates.TemplateResponse(
         request=request,
         name="dashboard.html",
@@ -149,11 +166,12 @@ def cameras_status(
     db: Session = Depends(get_db),
 ):
     sekarang = local_now(settings.tz_name)
-    live = _status_stream()
+    kamera = _daftar_kamera(db)
+    live = _status_stream(boleh_probe=_izin_probe(kamera, sekarang))
     return {
         "now": sekarang.isoformat(),
         "is_admin": bool(user is not None and user.is_admin),
-        "cameras": [camera_payload(c, user, request, sekarang, live) for c in _daftar_kamera(db)],
+        "cameras": [camera_payload(c, user, request, sekarang, live) for c in kamera],
     }
 
 
