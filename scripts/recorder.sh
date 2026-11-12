@@ -24,11 +24,22 @@ QUALITY="${QUALITY:-sub}"
 TUJUAN="${OUT_DIR}/${CAM_NAME}"
 mkdir -p "$TUJUAN"
 
-echo ">> recorder ${CAM_NAME}: ${CAM_URL} -> ${TUJUAN} (segmen ${SEGMENT_SECONDS}s)"
+# Kompatibilitas ffmpeg: opsi timeout socket RTSP berbeda antar versi.
+#   ffmpeg 4.x (Debian 11) -> -stimeout (mikrodetik)
+#   ffmpeg 5.x+            -> -rw_timeout (mikrodetik); -stimeout sudah dihapus
+FFMAJOR=$(ffmpeg -hide_banner -version 2>/dev/null | head -1 | sed -n 's/.*version n\?\([0-9]\+\)\..*/\1/p')
+FFMAJOR="${FFMAJOR:-4}"
+if [[ "$FFMAJOR" -ge 5 ]] && ffmpeg -hide_banner -h demuxer=rtsp 2>/dev/null | grep -q -- "-rw_timeout"; then
+  TIMEOUT_OPT=(-rw_timeout 15000000)
+else
+  TIMEOUT_OPT=(-stimeout 15000000)
+fi
+
+echo ">> recorder ${CAM_NAME}: ${CAM_URL} -> ${TUJUAN} (segmen ${SEGMENT_SECONDS}s, timeout ${TIMEOUT_OPT[*]})"
 
 while true; do
   ffmpeg -hide_banner -loglevel warning -nostdin \
-    -rtsp_transport tcp -rw_timeout 15000000 \
+    -rtsp_transport tcp "${TIMEOUT_OPT[@]}" \
     -fflags +genpts -use_wallclock_as_timestamps 1 \
     -i "$CAM_URL" \
     -c copy -an \
