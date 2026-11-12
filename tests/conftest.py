@@ -22,6 +22,10 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_TMP / 'test.db'}"
 os.environ["ADMIN_USER"] = "admin"
 os.environ["ADMIN_PASSWORD"] = "admin123"
 os.environ["COOKIE_SECURE"] = "0"
+# Test harus hermetik: `.env` produksi boleh berisi PUBLIC_VIEW=1, dan itu tidak
+# boleh mengubah arti test guard (401). Test mode publik meng-override lewat
+# monkeypatch pada `settings.public_view`.
+os.environ["PUBLIC_VIEW"] = "0"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
