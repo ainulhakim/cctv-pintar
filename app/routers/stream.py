@@ -15,6 +15,7 @@ cookie ke MediaMTX dan mengikuti redirect secara manual.
 from __future__ import annotations
 
 import re
+from typing import Optional
 from urllib.parse import urljoin
 
 import httpx
@@ -25,7 +26,7 @@ from sqlalchemy.orm import Session
 from .. import access, audit
 from ..config import settings
 from ..db import get_db
-from ..deps import get_current_user
+from ..deps import get_viewer_user
 from ..models import Camera, User
 
 router = APIRouter(tags=["stream"])
@@ -89,7 +90,7 @@ def _ambil_kamera(db: Session, slug: str) -> Camera:
     return kamera
 
 
-def _wajib_terbuka(db: Session, request: Request, kamera: Camera, user: User, action: str) -> None:
+def _wajib_terbuka(db: Session, request: Request, kamera: Camera, user: Optional[User], action: str) -> None:
     """Lolos kalau kamera sedang dalam jadwal, atau admin punya override aktif."""
     keputusan = access.keputusan_akses(request, user, kamera)
     if keputusan != access.CLOSED:
@@ -110,7 +111,7 @@ async def stream_proxy(
     slug: str,
     path: str,
     request: Request,
-    user: User = Depends(get_current_user),
+    user: Optional[User] = Depends(get_viewer_user),
     db: Session = Depends(get_db),
 ):
     kamera = _ambil_kamera(db, slug)

@@ -25,7 +25,9 @@ class TestPasswordHashing:
 
     def test_verify_salah(self):
         h = hash_password("<PASSWORD-KAMERA>")
-        assert verify_password("<PASSWORD-KAMERA>", h) is False
+        # password berbeda harus ditolak (placeholder sanitasi sempat membuat
+        # test ini membandingkan string yang sama -> selalu gagal)
+        assert verify_password("password-lain", h) is False
         assert verify_password("", h) is False
 
     def test_hash_korup_tidak_melempar(self):

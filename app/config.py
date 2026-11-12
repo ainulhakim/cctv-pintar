@@ -71,6 +71,11 @@ class Settings:
         self.session_cookie = os.getenv("SESSION_COOKIE", "cctv_session").strip() or "cctv_session"
         self.cookie_secure = _bool_env("COOKIE_SECURE", self.env == "production")
 
+        # Viewer publik: halaman pantauan, status, stream, dan snapshot boleh
+        # diakses tanpa login. Jadwal/override tetap dipaksa di level stream.
+        # Panel admin selalu wajib login, apa pun nilai ini.
+        self.public_view = _bool_env("PUBLIC_VIEW", False)
+
         self.admin_user = os.getenv("ADMIN_USER", "admin").strip() or "admin"
         self.admin_password = os.getenv("ADMIN_PASSWORD", "")
 

@@ -152,10 +152,29 @@ server hanya bertahan sekitar **1–3 jam**.
 
 - Kredensial kamera **hanya** di `/opt/mediamtx/mediamtx.yml`; aplikasi & browser tidak pernah menerimanya.
 - MediaMTX (RTSP/HLS/API) hanya listen di `127.0.0.1`.
-- Semua endpoint pantauan & stream wajib sesi login; `/api/docs` mati di mode produksi.
+- Semua endpoint pantauan & stream wajib sesi login — **kecuali** bila `PUBLIC_VIEW=1`
+  (mode viewer publik, lihat bagian di bawah); `/api/docs` mati di mode produksi.
+- Panel admin (`/admin*`) **selalu** wajib login, apa pun nilai `PUBLIC_VIEW`.
 - Cookie sesi `HttpOnly` + `SameSite=Lax` (CSRF antar-situs tertahan).
 - Rate limit login 5/5 menit per IP; seluruh aksi admin tercatat di `access_logs`.
 - `SECRET_KEY` disimpan di `.env` (perm 600), bukan di repo.
+
+### 8.1 Viewer publik (tanpa password)
+
+Master bisa membuka halaman pantauan untuk umum tanpa login:
+
+```bash
+cd ~/cctv-pintar && python3 scripts/set_env.py PUBLIC_VIEW=1 && sudo systemctl restart cctv-pintar
+```
+
+Yang terjadi: `/`, `/api/cameras/status`, `/stream/...`, dan `/api/snapshot/...` bisa diakses
+tanpa sesi. **Jadwal kamera tetap dipaksa** — kamera `scheduled` yang sedang tertutup tetap
+`403` (dan `stream_denied` tercatat di log), jadi viewer publik tidak bisa menembus jadwal.
+Override admin dan seluruh panel admin tetap butuh login admin.
+
+Risiko: siapa pun yang tahu URL `cctv.ainulhakim.com` bisa menonton kamera ber-mode `public`
+(24 jam). Kalau ingin menutup lagi: `PUBLIC_VIEW=0` + restart, atau ubah mode kamera ke
+`scheduled` lewat panel admin.
 
 `COOKIE_SECURE=0` sengaja dipakai supaya sesi tetap jalan lewat `http://` tailnet. Kalau akses
 hanya lewat HTTPS Cloudflare, set `COOKIE_SECURE=1` lalu restart aplikasi.

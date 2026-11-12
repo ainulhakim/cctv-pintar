@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .. import access, audit, override, snapshots
 from ..config import settings
 from ..db import get_db
-from ..deps import get_current_user
+from ..deps import get_current_user, get_viewer_user
 from ..models import Camera, User
 from ..schedule import HARI_PANJANG, describe, is_open, local_now, next_open
 from ..security import verify_password
@@ -83,7 +83,7 @@ def _ambil_kamera(db: Session, slug: str) -> Camera:
 @router.get("/")
 def dashboard(
     request: Request,
-    user: User = Depends(get_current_user),
+    user: Optional[User] = Depends(get_viewer_user),
     db: Session = Depends(get_db),
 ):
     sekarang = local_now(settings.tz_name)
@@ -102,13 +102,13 @@ def dashboard(
 @router.get("/api/cameras/status")
 def cameras_status(
     request: Request,
-    user: User = Depends(get_current_user),
+    user: Optional[User] = Depends(get_viewer_user),
     db: Session = Depends(get_db),
 ):
     sekarang = local_now(settings.tz_name)
     return {
         "now": sekarang.isoformat(),
-        "is_admin": bool(user.is_admin),
+        "is_admin": bool(user is not None and user.is_admin),
         "cameras": [camera_payload(c, user, request, sekarang) for c in _daftar_kamera(db)],
     }
 
@@ -117,7 +117,7 @@ def cameras_status(
 async def snapshot(
     slug: str,
     request: Request,
-    user: User = Depends(get_current_user),
+    user: Optional[User] = Depends(get_viewer_user),
     db: Session = Depends(get_db),
 ):
     kamera = _ambil_kamera(db, slug)

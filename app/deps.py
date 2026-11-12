@@ -43,6 +43,24 @@ def get_current_user(
     return user
 
 
+def get_viewer_user(
+    request: Request, db: Session = Depends(get_db)
+) -> Optional[User]:
+    """User untuk halaman pantauan (viewer).
+
+    Bila `PUBLIC_VIEW` aktif, pengunjung tanpa sesi tetap dilayani (user=None);
+    bila tidak aktif, wajib login seperti biasa (401).
+    """
+    user = get_current_user_optional(request, db)
+    if user is None and not settings.public_view:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Perlu login",
+            headers={"WWW-Authenticate": "Cookie"},
+        )
+    return user
+
+
 def require_admin(user: User = Depends(get_current_user)) -> User:
     """Wajib role admin. 403 bila bukan admin."""
     if not user.is_admin:
