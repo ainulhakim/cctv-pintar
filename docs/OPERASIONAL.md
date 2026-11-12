@@ -178,3 +178,51 @@ Risiko: siapa pun yang tahu URL `cctv.ainulhakim.com` bisa menonton kamera ber-m
 
 `COOKIE_SECURE=0` sengaja dipakai supaya sesi tetap jalan lewat `http://` tailnet. Kalau akses
 hanya lewat HTTPS Cloudflare, set `COOKIE_SECURE=1` lalu restart aplikasi.
+
+## 9. Rekaman CCTV (aktif sejak 13 Nov 2026)
+
+Rekaman 24 jam **tanpa transcode** (`-c copy` HEVC sub-stream), jadi CPU hampir nol.
+Dua lapis pengaman kuota:
+
+- **Hard limit filesystem**: volume ext4 on loopback `/srv/cctv-rec/rec.img` = **30 GB**
+  (terdaftar di `/etc/fstab`, opsi `loop,noatime,nofail`). Recorder secara fisik tidak bisa
+  menulis melebihi 30 GB, apa pun bug-nya.
+- **Recycler aplikasi**: `cctv-recycle.timer` tiap 5 menit menghapus segmen **terlama** saat
+  pemakaian > 90% kuota (`RECORD_HIGH_WATERMARK=0.9` → 27 GB). Berkas < 120 detik tidak
+  pernah dihapus.
+
+Konfigurasi:
+
+```
+/etc/cctv-record/quota.env     RECORD_QUOTA_GB=30 RECORD_HIGH_WATERMARK=0.9 RECORD_RETENTION_DAYS=0
+/etc/cctv-record/utara.env     CAM_URL=rtsp://...192.168.1.2:554/1/2
+/etc/cctv-record/selatan.env   CAM_URL=rtsp://...192.168.1.223:554/1/2
+/etc/cctv-record/balai.env     CAM_URL=rtsp://...192.168.1.222:554/...stream=1
+```
+
+Segmen: **MPEG-TS** (`SEGMENT_FORMAT=ts`, default) 1 jam/berkas, nama
+`/srv/cctv-rec/<kamera>/YYYYmmdd-HHMMSS_sub.ts`. TS dipilih karena tidak butuh *moov atom*:
+potongan yang terpotong reboot/kamera-putus tetap bisa diputar. (Mode `mp4` masih tersedia via
+`SEGMENT_FORMAT=mp4`, tapi segmen terakhir yang belum ditutup akan korup.)
+
+Operasi harian:
+
+```bash
+systemctl list-units 'cctv-record@*' --no-pager        # status per kamera
+systemctl restart cctv-record@utara                     # restart 1 kamera
+journalctl -u cctv-record@utara -n 50 --no-pager        # log (perlu sudo)
+du -sh /srv/cctv-rec/*/ ; df -h /srv/cctv-rec            # pemakaian nyata
+python3 ~/cctv-pintar/scripts/quota_recycle.py --root /srv/cctv-rec --quota-gb 30 --dry-run
+sudo bash ~/cctv-pintar/scripts/record_setup_volume.sh --size-gb 60 --grow   # perbesar kuota
+```
+
+Tambah kamera ke rekaman: buat `/etc/cctv-record/<nama>.env` berisi `CAM_URL=...`, lalu
+`sudo systemctl enable --now cctv-record@<nama>`.
+
+Rekaman kamera kantor (`camkantor`) **tidak** diaktifkan karena bergantung pada relay MacBook
+(`rtsp://127.0.0.1:8554/camkantor`); aktifkan dengan perintah di atas bila relay selalu hidup.
+
+Catatan: kuota 30 GB hanya menampung sekitar **2 hari** rekaman 3 kamera (laju terukur
+±14 GB/hari, didominasi kamera selatan ±10 GB/hari). Untuk arsip lebih panjang: perkecil
+bitrate sub-stream kamera selatan, kurangi jumlah kamera, atau tambah disk eksternal.
+
