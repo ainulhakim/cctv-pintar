@@ -12,6 +12,7 @@
 #   OUT_DIR          default /srv/cctv-rec
 #   SEGMENT_SECONDS  default 3600 (1 jam per berkas)
 #   QUALITY          label di nama berkas, default "sub"
+#   SEGMENT_FORMAT   default "ts" (mpegts) — lihat catatan di bawah
 
 set -uo pipefail
 
@@ -20,6 +21,17 @@ set -uo pipefail
 OUT_DIR="${OUT_DIR:-/srv/cctv-rec}"
 SEGMENT_SECONDS="${SEGMENT_SECONDS:-3600}"
 QUALITY="${QUALITY:-sub}"
+# Kenapa default mpegts, bukan mp4:
+#   Segmen mp4 baru punya "moov atom" saat berkas ditutup rapi. Kalau ffmpeg
+#   mati mendadak (reboot, listrik, kamera putus), segmen yang sedang ditulis
+#   jadi TIDAK bisa diputar tapi tetap memakan kuota. MPEG-TS tidak butuh
+#   moov: potongan yang sempat tertulis selalu bisa diputar (VLC/ffmpeg).
+SEGMENT_FORMAT="${SEGMENT_FORMAT:-ts}"
+case "$SEGMENT_FORMAT" in
+  ts|mpegts) SEG_EXT="ts";  SEG_FMT="mpegts"; SEG_OPTS=() ;;
+  mp4)       SEG_EXT="mp4"; SEG_FMT="mp4";    SEG_OPTS=(-segment_format_options movflags=+faststart) ;;
+  *) echo "!! SEGMENT_FORMAT tidak dikenal: $SEGMENT_FORMAT (pakai ts|mp4)" >&2; exit 2 ;;
+esac
 
 TUJUAN="${OUT_DIR}/${CAM_NAME}"
 mkdir -p "$TUJUAN"
@@ -35,7 +47,7 @@ else
   TIMEOUT_OPT=(-stimeout 15000000)
 fi
 
-echo ">> recorder ${CAM_NAME}: ${CAM_URL} -> ${TUJUAN} (segmen ${SEGMENT_SECONDS}s, timeout ${TIMEOUT_OPT[*]})"
+echo ">> recorder ${CAM_NAME}: ${CAM_URL} -> ${TUJUAN} (segmen ${SEGMENT_SECONDS}s ${SEG_FMT}, timeout ${TIMEOUT_OPT[*]})"
 
 while true; do
   ffmpeg -hide_banner -loglevel warning -nostdin \
@@ -44,9 +56,9 @@ while true; do
     -i "$CAM_URL" \
     -c copy -an \
     -f segment -segment_time "$SEGMENT_SECONDS" \
-    -segment_format mp4 -segment_format_options movflags=+faststart \
+    -segment_format "$SEG_FMT" ${SEG_OPTS[@]+"${SEG_OPTS[@]}"} \
     -reset_timestamps 1 -strftime 1 \
-    "${TUJUAN}/%Y%m%d-%H%M%S_${QUALITY}.mp4" \
+    "${TUJUAN}/%Y%m%d-%H%M%S_${QUALITY}.${SEG_EXT}" \
     || true
   echo "!! ${CAM_NAME}: ffmpeg berhenti (rc=$?), coba lagi 5 detik"
   sleep 5
