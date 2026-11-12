@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, Response
@@ -19,6 +20,29 @@ from ..security import verify_password
 from ..templating import templates
 
 router = APIRouter(tags=["view"])
+
+
+def _status_stream(timeout: float = 2.0) -> dict:
+    """Peta stream_key -> apakah MediaMTX benar-benar punya video.
+
+    Dipakai supaya badge LIVE/TERTUTUP mencerminkan kenyataan: kamera bisa
+    "terbuka" menurut jadwal tetapi stream-nya mati (relay putus, kamera
+    offline). Gagal menghubungi MediaMTX -> dict kosong (dianggap tidak live).
+    """
+    try:
+        resp = httpx.get(f"{settings.mediamtx_api}/v3/paths/list", timeout=timeout)
+        resp.raise_for_status()
+        items = resp.json().get("items", [])
+    except Exception:  # noqa: BLE001 - jangan gagalkan halaman karena API media
+        return {}
+    hasil = {}
+    for item in items:
+        nama = item.get("name")
+        if not nama:
+            continue
+        tracks = item.get("tracks") or []
+        hasil[nama] = bool(item.get("ready")) and bool(tracks)
+    return hasil
 
 
 def _label_waktu(waktu) -> Optional[str]:
@@ -39,12 +63,15 @@ def _label_override(waktu) -> Optional[str]:
     return lokal.strftime("%H:%M")
 
 
-def camera_payload(kamera: Camera, user: Optional[User] = None, request: Request = None, now=None) -> dict:
+def camera_payload(kamera: Camera, user: Optional[User] = None, request: Request = None, now=None,
+                   live: Optional[dict] = None) -> dict:
     """Bentuk data kamera untuk template dan /api/cameras/status."""
     policy = kamera.policy
     terbuka = is_open(policy, now)
     berikut = None if terbuka else next_open(policy, now)
     grant_sampai = override.deadline(request, user, kamera) if request is not None else None
+    # live: peta dari _status_stream(); None = tidak diketahui -> anggap hidup
+    sedang_live = True if live is None else bool(live.get(kamera.stream_key))
 
     return {
         "slug": kamera.slug,
@@ -52,6 +79,7 @@ def camera_payload(kamera: Camera, user: Optional[User] = None, request: Request
         "location": kamera.location,
         "enabled": kamera.enabled,
         "open": terbuka,
+        "live": sedang_live,
         "policy": describe(policy),
         "next_open": berikut.isoformat() if berikut else None,
         "next_open_label": _label_waktu(berikut),
@@ -88,12 +116,13 @@ def dashboard(
 ):
     sekarang = local_now(settings.tz_name)
     kamera = _daftar_kamera(db)
+    live = _status_stream()
     return templates.TemplateResponse(
         request=request,
         name="dashboard.html",
         context={
             "user": user,
-            "cameras": [camera_payload(c, user, request, sekarang) for c in kamera],
+            "cameras": [camera_payload(c, user, request, sekarang, live) for c in kamera],
             "sekarang": sekarang.strftime("%H:%M:%S"),
         },
     )
@@ -106,10 +135,11 @@ def cameras_status(
     db: Session = Depends(get_db),
 ):
     sekarang = local_now(settings.tz_name)
+    live = _status_stream()
     return {
         "now": sekarang.isoformat(),
         "is_admin": bool(user is not None and user.is_admin),
-        "cameras": [camera_payload(c, user, request, sekarang) for c in _daftar_kamera(db)],
+        "cameras": [camera_payload(c, user, request, sekarang, live) for c in _daftar_kamera(db)],
     }
 
 

@@ -96,8 +96,13 @@
 
   function setPill(el, cam) {
     el.classList.remove("bg-emerald-500/15", "text-emerald-300", "bg-amber-500/15",
-                        "text-amber-300", "bg-sky-500/15", "text-sky-200");
-    if (cam.open) {
+                        "text-amber-300", "bg-sky-500/15", "text-sky-200",
+                        "bg-red-500/15", "text-red-300");
+    if (cam.open && cam.live === false) {
+      /* jadwal terbuka tapi stream mati (relay putus / kamera offline) */
+      el.classList.add("bg-red-500/15", "text-red-300");
+      el.textContent = "OFFLINE";
+    } else if (cam.open) {
       el.classList.add("bg-emerald-500/15", "text-emerald-300");
       el.textContent = "LIVE";
     } else if (cam.override_active) {
@@ -149,7 +154,8 @@
     const overlay = el.querySelector(".overlay");
     const detail = el.querySelector(".overlay-detail");
     const badge = el.querySelector(".override-badge");
-    const bisaTonton = cam.open || cam.override_active;
+    /* hanya pasang pemutar kalau jadwal terbuka DAN stream benar-benar ada */
+    const bisaTonton = (cam.open || cam.override_active) && cam.live !== false;
 
     setPill(el.querySelector(".pill"), cam);
 
@@ -166,9 +172,13 @@
       pasangPemutar(cam.slug);
     } else {
       lepasPemutar(cam.slug);
-      detail.textContent = cam.next_open_label
-        ? "Dibuka kembali " + cam.next_open_label
-        : "Tidak ada jadwal buka aktif";
+      if (cam.live === false && (cam.open || cam.override_active)) {
+        detail.textContent = "Kamera tidak mengirim gambar (offline). Coba lagi nanti.";
+      } else {
+        detail.textContent = cam.next_open_label
+          ? "Dibuka kembali " + cam.next_open_label
+          : "Tidak ada jadwal buka aktif";
+      }
       overlay.classList.remove("hidden");
       overlay.classList.add("flex");
     }
