@@ -10,7 +10,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
-from .. import access, audit, override, snapshots
+from .. import access, audit, health, override, snapshots
 from ..config import settings
 from ..db import get_db
 from ..deps import get_current_user, get_viewer_user
@@ -22,12 +22,12 @@ from ..templating import templates
 router = APIRouter(tags=["view"])
 
 
-def _status_stream(timeout: float = 2.0) -> dict:
-    """Peta stream_key -> apakah MediaMTX benar-benar punya video.
+def _publisher_map(timeout: float = 2.0) -> dict:
+    """Peta stream_key -> apakah MediaMTX punya publisher dengan video.
 
-    Dipakai supaya badge LIVE/TERTUTUP mencerminkan kenyataan: kamera bisa
-    "terbuka" menurut jadwal tetapi stream-nya mati (relay putus, kamera
-    offline). Gagal menghubungi MediaMTX -> dict kosong (dianggap tidak live).
+    Ini hanya separuh cerita: MediaMTX memakai `runOnDemand`, sehingga path yang
+    sedang tidak ditonton tidak pernah "ready". Karena itu hasilnya dipakai
+    sebagai *bukti hidup*, bukan bukti mati — lihat `_status_stream`.
     """
     try:
         resp = httpx.get(f"{settings.mediamtx_api}/v3/paths/list", timeout=timeout)
@@ -43,6 +43,17 @@ def _status_stream(timeout: float = 2.0) -> dict:
         tracks = item.get("tracks") or []
         hasil[nama] = bool(item.get("ready")) and bool(tracks)
     return hasil
+
+
+def _status_stream(timeout: float = 2.0) -> dict:
+    """Peta stream_key -> state: `live` / `siap` / `offline`.
+
+    `offline` hanya diberikan kalau probe aktif gagal (kamera/relay benar-benar
+    tidak mengirim gambar). kondisi "tidak diketahui" dilaporkan `siap`, karena
+    kamera runOnDemand yang sedang siaga bukan kamera yang mati.
+    """
+    publisher = _publisher_map(timeout)
+    return {nama: health.state(nama, aktif) for nama, aktif in publisher.items()}
 
 
 def _label_waktu(waktu) -> Optional[str]:
@@ -70,8 +81,9 @@ def camera_payload(kamera: Camera, user: Optional[User] = None, request: Request
     terbuka = is_open(policy, now)
     berikut = None if terbuka else next_open(policy, now)
     grant_sampai = override.deadline(request, user, kamera) if request is not None else None
-    # live: peta dari _status_stream(); None = tidak diketahui -> anggap hidup
-    sedang_live = True if live is None else bool(live.get(kamera.stream_key))
+    # live: peta stream_key -> state dari _status_stream(); None = tidak diketahui
+    # -> anggap siap (jangan pernah mengklaim offline tanpa bukti).
+    keadaan = health.SIAP if live is None else live.get(kamera.stream_key, health.SIAP)
 
     return {
         "slug": kamera.slug,
@@ -79,7 +91,9 @@ def camera_payload(kamera: Camera, user: Optional[User] = None, request: Request
         "location": kamera.location,
         "enabled": kamera.enabled,
         "open": terbuka,
-        "live": sedang_live,
+        "live": keadaan == health.LIVE,
+        "state": keadaan,
+        "watchable": keadaan != health.OFFLINE,
         "policy": describe(policy),
         "next_open": berikut.isoformat() if berikut else None,
         "next_open_label": _label_waktu(berikut),

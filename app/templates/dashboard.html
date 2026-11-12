@@ -98,13 +98,18 @@
     el.classList.remove("bg-emerald-500/15", "text-emerald-300", "bg-amber-500/15",
                         "text-amber-300", "bg-sky-500/15", "text-sky-200",
                         "bg-red-500/15", "text-red-300");
-    if (cam.open && cam.live === false) {
-      /* jadwal terbuka tapi stream mati (relay putus / kamera offline) */
+    /* state: live | siap | offline (jangan mengklaim offline tanpa bukti) */
+    if (cam.open && cam.state === "offline") {
+      /* jadwal terbuka tapi kamera/relay benar-benar tidak mengirim gambar */
       el.classList.add("bg-red-500/15", "text-red-300");
       el.textContent = "OFFLINE";
-    } else if (cam.open) {
+    } else if (cam.open && cam.state === "live") {
       el.classList.add("bg-emerald-500/15", "text-emerald-300");
       el.textContent = "LIVE";
+    } else if (cam.open) {
+      /* kamera terjangkau tapi sedang siaga (runOnDemand idle) */
+      el.classList.add("bg-amber-500/15", "text-amber-300");
+      el.textContent = "SIAP";
     } else if (cam.override_active) {
       el.classList.add("bg-sky-500/15", "text-sky-200");
       el.textContent = "OVERRIDE";
@@ -154,8 +159,8 @@
     const overlay = el.querySelector(".overlay");
     const detail = el.querySelector(".overlay-detail");
     const badge = el.querySelector(".override-badge");
-    /* hanya pasang pemutar kalau jadwal terbuka DAN stream benar-benar ada */
-    const bisaTonton = (cam.open || cam.override_active) && cam.live !== false;
+    /* hanya pasang pemutar kalau jadwal terbuka DAN kamera bukan offline */
+    const bisaTonton = (cam.open || cam.override_active) && cam.state !== "offline";
 
     setPill(el.querySelector(".pill"), cam);
 
@@ -172,7 +177,7 @@
       pasangPemutar(cam.slug);
     } else {
       lepasPemutar(cam.slug);
-      if (cam.live === false && (cam.open || cam.override_active)) {
+      if (cam.state === "offline" && (cam.open || cam.override_active)) {
         detail.textContent = "Kamera tidak mengirim gambar (offline). Coba lagi nanti.";
       } else {
         detail.textContent = cam.next_open_label

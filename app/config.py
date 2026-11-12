@@ -65,6 +65,13 @@ class Settings:
         self.snapshot_cache_seconds = float(os.getenv("SNAPSHOT_CACHE_SECONDS", "5"))
         self.snapshot_timeout = float(os.getenv("SNAPSHOT_TIMEOUT", "20"))
 
+        # Probe kesehatan kamera. MediaMTX memakai runOnDemand, jadi path yang
+        # sedang tidak ditonton tidak "ready" — tanpa probe, semua kamera akan
+        # tampil offline. Probe dipakai hanya untuk membuktikan kamera/relay mati.
+        self.live_probe = _bool_env("LIVE_PROBE", True)
+        self.live_probe_ttl = float(os.getenv("LIVE_PROBE_TTL", "90"))
+        self.live_probe_timeout = float(os.getenv("LIVE_PROBE_TIMEOUT", "20"))
+
         self.tz_name = os.getenv("TZ_NAME", "Asia/Jakarta").strip() or "Asia/Jakarta"
         self.session_max_age = int(os.getenv("SESSION_MAX_AGE", "43200"))  # 12 jam
         self.override_ttl = int(os.getenv("OVERRIDE_TTL", "1800"))  # 30 menit

@@ -26,6 +26,9 @@ os.environ["COOKIE_SECURE"] = "0"
 # boleh mengubah arti test guard (401). Test mode publik meng-override lewat
 # monkeypatch pada `settings.public_view`.
 os.environ["PUBLIC_VIEW"] = "0"
+# Probe kesehatan kamera dimatikan di test supaya tidak memanggil ffprobe/MediaMTX;
+# test yang menguji state offline/new live men-set flag ini secara eksplisit.
+os.environ["LIVE_PROBE"] = "0"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
