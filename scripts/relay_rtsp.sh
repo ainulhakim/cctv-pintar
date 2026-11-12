@@ -1,52 +1,57 @@
 #!/bin/bash
-# relay_rtsp.sh — jalankan di MacBook: tarik RTSP kamera LAN kantor, kirim ke rumah.
+# relay_rtsp.sh — dijalankan DI MacBook: tarik RTSP kamera kantor, dorong ke MediaMTX rumah.
 #
-# Pakai `ssh -R`: server rumah mendapat listener 127.0.0.2:8555 yang diteruskan
-# kembali ke MacBook, lalu ffmpeg MacBook mendorong video ke RTSP MediaMTX rumah
-# (127.0.0.1:8554/camkantor). Tidak perlu membuka port apa pun ke internet.
+# Arsitektur (tanpa membuka port apa pun ke internet):
+#   Tapo (LAN kantor) --RTSP--> ffmpeg MacBook --ssh -L--> MediaMTX rumah:8554/camkantor
+#
+# MacBook menghubungkan dirinya ke rumah lewat Tailscale, lalu memakai forward
+# lokal 127.0.0.1:28554 -> rumah:127.0.0.1:8554. ffmpeg cukup push ke localhost.
+#
+# Pemakaian:
+#   CAM_USER=nafiri CAM_PASS=12345678 bash relay_rtsp.sh
+#   CAM_PATH=stream1 ... (HD 1080p; default stream2 = 640x360)
 set -uo pipefail
 
 REMOTE_USER="${REMOTE_USER:-ainul}"
 REMOTE_HOST="${REMOTE_HOST:-100.116.211.47}"
-REMOTE_DIR="${REMOTE_DIR:-/home/ainul/cctv-pintar}"
 KEY="${KEY:-/tmp/relay_key}"
 FFMPEG="${FFMPEG:-/opt/homebrew/bin/ffmpeg}"
 
-# kredensial Camera Account Tapo (bukan akun cloud TP-Link)
 CAM_USER="${CAM_USER:-}"
 CAM_PASS="${CAM_PASS:-}"
 CAM_IP="${CAM_IP:-192.168.1.19}"
-CAM_PATH="${CAM_PATH:-stream1}"      # stream1 = HD, stream2 = SD
+CAM_PATH="${CAM_PATH:-stream2}"
 TARGET_PATH="${TARGET_PATH:-camkantor}"
-
-RELAY_PORT=8555
+LOCAL_PORT="${LOCAL_PORT:-28554}"
 
 if [[ -z "$CAM_USER" || -z "$CAM_PASS" ]]; then
-  echo "!! isi CAM_USER dan CAM_PASS (Camera Account Tapo)" >&2
+  echo "!! isi CAM_USER dan CAM_PASS (Camera Account Tapo, bukan akun cloud)" >&2
   exit 2
 fi
 
-# URL-encode kredensial (aman untuk '@', ':', dll.)
-python3 - "$CAM_USER" "$CAM_PASS" "$CAM_IP" "$CAM_PATH" <<'PY' > /tmp/relay_url.txt
-import sys, urllib.parse
-u, p, ip, path = sys.argv[1:5]
-print("rtsp://%s:%s@%s:554/%s" % (urllib.parse.quote(u, safe=""), urllib.parse.quote(p, safe=""), ip, path))
+SRC=$(CAM_USER="$CAM_USER" CAM_PASS="$CAM_PASS" CAM_IP="$CAM_IP" CAM_PATH="$CAM_PATH" python3 - <<'PY'
+import os, urllib.parse
+u = urllib.parse.quote(os.environ["CAM_USER"], safe="")
+p = urllib.parse.quote(os.environ["CAM_PASS"], safe="")
+print("rtsp://%s:%s@%s:554/%s" % (u, p, os.environ["CAM_IP"], os.environ["CAM_PATH"]))
 PY
-SRC="$(cat /tmp/relay_url.txt)"
+)
 
-# tunnel: rumah:127.0.0.2:8555 -> MacBook:28554 -> MediaMTX rumah:8554
+# tunnel: MacBook 127.0.0.1:28554 -> rumah 127.0.0.1:8554 (MediaMTX)
 ssh -i "$KEY" -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=20 \
-    -N -R 127.0.0.2:${RELAY_PORT}:127.0.0.1:28554 \
-    -L 127.0.0.1:28554:127.0.0.1:8554 \
+    -o ExitOnForwardFailure=yes -N \
+    -L 127.0.0.1:${LOCAL_PORT}:127.0.0.1:8554 \
     "${REMOTE_USER}@${REMOTE_HOST}" &
 SSH_PID=$!
 trap 'kill $SSH_PID 2>/dev/null' EXIT
 sleep 3
 
-echo ">> relay: rumah 127.0.0.2:${RELAY_PORT} -> MacBook -> MediaMTX 127.0.0.1:8554/${TARGET_PATH}"
-echo ">> sumber: rtsp://${CAM_IP}:554/${CAM_PATH}"
+echo ">> sumber  : rtsp://${CAM_IP}:554/${CAM_PATH} (user ${CAM_USER})"
+echo ">> tujuan  : rumah 127.0.0.1:8554/${TARGET_PATH} via tunnel lokal :${LOCAL_PORT}"
 
-"$FFMPEG" -hide_banner -nostdin -loglevel warning \
+# -c:v copy: tanpa re-encode (Tapo sudah H.264) -> CPU ringan, kualitas utuh
+exec "$FFMPEG" -hide_banner -nostdin -loglevel warning \
   -rtsp_transport tcp -i "$SRC" \
-  -c:v copy -an -f rtsp -rtsp_transport tcp \
-  "rtsp://127.0.0.1:28554/${TARGET_PATH}"
+  -c:v copy -an \
+  -f rtsp -rtsp_transport tcp \
+  "rtsp://127.0.0.1:${LOCAL_PORT}/${TARGET_PATH}"
