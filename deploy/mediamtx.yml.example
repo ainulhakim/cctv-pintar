@@ -64,3 +64,10 @@ paths:
     runOnDemandStartTimeout: 25s
     runOnDemandCloseAfter: 15s
     rtspTransport: tcp
+
+  # Kamera kantor (Tapo C200C) — BUKAN dari LAN rumah.
+  # Video didorong dari MacBook lewat relay `ssh -R` (lihat scripts/relay_rtsp.sh
+  # di laptop). Tidak ada runOnDemand: path ini hanya menerima publisher.
+  # Kalau relay mati, path menjadi offline (bukan error konfigurasi).
+  camkantor:
+    rtspTransport: tcp
