@@ -265,6 +265,14 @@ _KONVERSI_MAKS = int(os.getenv("RECORD_TRANSCODE_MAX", "1") or 1)
 def _cache_dir() -> Path:
     folder = root_rekaman() / ".cache-h264"
     folder.mkdir(parents=True, exist_ok=True)
+    # buang sisa konversi yang mati di tengah jalan (tidak bisa diputar, cuma makan kuota)
+    batas = time.time() - 3600
+    for sisa in folder.rglob("*.part.mp4"):
+        try:
+            if sisa.stat().st_mtime < batas:
+                sisa.unlink()
+        except OSError:
+            continue
     return folder
 
 
@@ -278,9 +286,15 @@ def _kunci(slug: str, nama: str) -> str:
 
 
 def _jalankan(kunci: str, sumber: Path, tujuan: Path) -> None:
-    """Konversi satu segmen ke H.264/AAC MP4 (faststart agar bisa langsung diputar)."""
+    """Konversi satu segmen ke H.264/AAC MP4 (faststart agar bisa langsung diputar).
+
+    Bitrate dibatasi (CRF + maxrate) supaya ukuran hasil tidak membengkak:
+    percobaan awal tanpa maxrate menghasilkan ~428 MB untuk 1 jam rekaman
+    (cukup untuk 10 GB/hari) — terlalu besar untuk volume 30 GB.
+    """
     tujuan.parent.mkdir(parents=True, exist_ok=True)
     sementara = tujuan.with_suffix(".part.mp4")
+    sementara.unlink(missing_ok=True)
     cmd = [
         "ffmpeg",
         "-hide_banner",
@@ -294,14 +308,19 @@ def _jalankan(kunci: str, sumber: Path, tujuan: Path) -> None:
         "-preset",
         "veryfast",
         "-crf",
-        "26",
+        "27",
+        # batas atas bitrate: maksimum ~600 kbps (≈ 270 MB/jam)
+        "-maxrate",
+        "600k",
+        "-bufsize",
+        "1200k",
         "-profile:v",
         "main",
         "-pix_fmt",
         "yuv420p",
-        # turunkan ke 704x576 maksimum: rekaman sub-stream, cukup untuk arsip
+        # rekaman sub-stream; cukup 640 px lebar untuk keperluan tinjauan
         "-vf",
-        "scale='min(704,iw)':-2",
+        "scale='min(640,iw)':-2",
         "-c:a",
         "aac",
         "-b:a",
@@ -313,13 +332,12 @@ def _jalankan(kunci: str, sumber: Path, tujuan: Path) -> None:
         str(sementara),
     ]
     proses = subprocess.Popen(
-        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
     with _LOCK:
         _SEDANG[kunci] = proses
-    galat = b""
     try:
-        _, galat = proses.communicate(timeout=3600)
+        proses.wait(timeout=3600)
         if proses.returncode == 0 and sementara.is_file():
             sementara.replace(tujuan)
         else:
@@ -332,6 +350,14 @@ def _jalankan(kunci: str, sumber: Path, tujuan: Path) -> None:
     finally:
         with _LOCK:
             _SEDANG.pop(kunci, None)
+            # jalankan antrean berikutnya (bug: sebelumnya antrean tidak pernah maju)
+            berikut = _ANTREAN.pop(0) if _ANTREAN else None
+        if berikut:
+            slug_b, _, nama_b = berikut.partition("/")
+            try:
+                _mulai(slug_b, nama_b)
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def _mulai(slug: str, nama: str) -> str:
