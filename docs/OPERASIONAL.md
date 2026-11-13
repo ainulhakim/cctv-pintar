@@ -200,10 +200,22 @@ Konfigurasi:
 /etc/cctv-record/balai.env     CAM_URL=rtsp://...192.168.1.222:554/...stream=1
 ```
 
-Segmen: **MPEG-TS** (`SEGMENT_FORMAT=ts`, default) 1 jam/berkas, nama
+Segmen: **MPEG-TS** (`SEGMENT_FORMAT=ts`, default) **5 menit/berkas**, nama
 `/srv/cctv-rec/<kamera>/YYYYmmdd-HHMMSS_sub.ts`. TS dipilih karena tidak butuh *moov atom*:
 potongan yang terpotong reboot/kamera-putus tetap bisa diputar. (Mode `mp4` masih tersedia via
 `SEGMENT_FORMAT=mp4`, tapi segmen terakhir yang belum ditutup akan korup.)
+
+Segmen 5 menit dipilih supaya: (a) tinjauan cepat — tidak perlu menunggu konversi 1 jam,
+(b) konversi H.264 selesai dalam ±10 detik, (c) kehilangan data saat crash maksimal 5 menit.
+
+### 9.1 Menonton rekaman (menu **Rekaman**)
+
+`/admin/recordings` (wajib login admin): filter kamera + tanggal, lalu **Putar** atau
+**Unduh asli**. Rekaman kamera berformat **HEVC (H.265)** — browser tidak bisa memutarnya,
+jadi aplikasi mengonversi segmen ke **H.264** sekali saat pertama dibuka (asinkron, satu
+antrean, ±10 detik per segmen 5 menit), lalu menyimpannya di `/srv/cctv-rec/.cache-h264/`
+(batas 4 GB, dibersihkan otomatis oleh recycler). Buka ulang = instan. Tombol
+**Unduh asli** memberi berkas `.ts` HEVC untuk diputar di VLC.
 
 Operasi harian:
 

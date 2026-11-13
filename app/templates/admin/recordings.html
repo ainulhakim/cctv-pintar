@@ -93,7 +93,7 @@
         {% for s in segmen[:60] %}
         <tr class="hover:bg-slate-900/60">
           <td class="px-3 py-2 font-mono text-slate-200">{{ s.tanggal }} {{ s.jam }}</td>
-          <td class="px-3 py-2 text-slate-400">± 1 jam</td>
+          <td class="px-3 py-2 text-slate-400">± 5 menit</td>
           <td class="px-3 py-2 text-slate-400">{{ s.ukuran_mb }} MB</td>
           <td class="px-3 py-2 text-right">
             <a href="/admin/recordings/play/{{ slug }}/{{ s.nama }}"
