@@ -25,22 +25,79 @@
     </a>
     {% endif %}
     <a href="/admin/recordings/file/{{ slug }}/{{ nama }}?unduh=1"
-       class="rounded-md bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-500">
-      Unduh
+       class="rounded-md border border-slate-700 px-3 py-1.5 text-slate-300 hover:bg-slate-800"
+       title="Berkas asli HEVC — putar dengan VLC">
+      Unduh asli
     </a>
   </div>
 </div>
 
 <div class="mt-5 overflow-hidden rounded-xl border border-slate-800 bg-black">
-  <video class="aspect-video w-full" controls autoplay muted playsinline preload="metadata">
-    <source src="/admin/recordings/file/{{ slug }}/{{ nama }}" type="{{ mime }}">
-    Browser tidak mendukung pemutaran berkas ini.
-  </video>
+  <video id="pemutar" class="aspect-video w-full" controls playsinline preload="metadata"></video>
+  <div id="status" class="flex flex-wrap items-center justify-center gap-2 px-4 py-3 text-sm text-slate-300">
+    <span class="inline-block h-3 w-3 animate-pulse rounded-full bg-amber-400"></span>
+    <span id="status-teks">Menyiapkan pemutaran…</span>
+  </div>
+</div>
+
+<div id="panel-unduh" class="mt-3 hidden">
+  <a id="link-unduh-h264" href="#"
+     class="inline-block rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-500">
+    Unduh MP4 (H.264)
+  </a>
 </div>
 
 <p class="mt-3 text-xs text-slate-500">
-  Pemutaran lewat server ini (bukan langsung ke kamera), mendukung seek/geser waktu.
-  Berkas <code>.ts</code> (MPEG-TS) diputar langsung di browser modern; bila gagal,
-  unduh lalu buka dengan VLC.
+  Rekaman asli berformat <strong>HEVC (H.265)</strong> dari kamera — browser tidak bisa memutarnya,
+  jadi segmen ini dikonversi ke <strong>H.264</strong> sekali saat pertama dibuka (butuh beberapa
+  detik s/d ~1 menit per jam rekaman). Hasil konversi di-cache, buka ulang jadi instan.
 </p>
+
+<script>
+(() => {
+  const SLUG = {{ slug|tojson }};
+  const NAMA = {{ nama|tojson }};
+  const video = document.getElementById("pemutar");
+  const statusBox = document.getElementById("status");
+  const statusTeks = document.getElementById("status-teks");
+  const panelUnduh = document.getElementById("panel-unduh");
+  const linkUnduh = document.getElementById("link-unduh-h264");
+
+  function tampilStatus(teks, warna) {
+    statusBox.classList.remove("hidden");
+    statusBox.style.display = "flex";
+    statusTeks.textContent = teks;
+    statusBox.querySelector("span").className =
+      "inline-block h-3 w-3 rounded-full " + (warna || "animate-pulse bg-amber-400");
+  }
+
+  function siapkan(url) {
+    video.src = url;
+    statusBox.style.display = "none";
+    linkUnduh.href = url + "?unduh=1";
+    panelUnduh.classList.remove("hidden");
+    video.play().catch(() => { /* autoplay bisa diblokir; tombol play tetap ada */ });
+  }
+
+  async function cek() {
+    try {
+      const r = await fetch(`/admin/recordings/h264/${encodeURIComponent(SLUG)}/${encodeURIComponent(NAMA)}`,
+                            { headers: { accept: "application/json" } });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const d = await r.json();
+      if (d.status === "siap") return siapkan(d.url);
+      if (d.status === "proses") {
+        tampilStatus("Mengonversi ke H.264 (sekali saja)…");
+      } else {
+        tampilStatus("Menunggu antrean konversi…");
+      }
+      setTimeout(cek, 3000);
+    } catch (e) {
+      tampilStatus("Gagal menyiapkan pemutaran: " + e.message, "bg-rose-500");
+    }
+  }
+
+  cek();
+})();
+</script>
 {% endblock %}

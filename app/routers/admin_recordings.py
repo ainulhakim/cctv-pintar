@@ -16,12 +16,17 @@ Akses: login admin. Setiap pemutaran/unduhan tercatat di access_logs.
 from __future__ import annotations
 
 import datetime as dt
+import os
 import re
+import shutil
+import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -235,5 +240,173 @@ def file_mentah(
         path,
         media_type=media,
         filename=nama if unduh else None,
+        content_disposition_type="attachment" if unduh else "inline",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Transcode H.264 on demand
+#
+# Segmen rekaman adalah HEVC (H.265) apa adanya dari kamera. Browser TIDAK bisa
+# memutar HEVC di dalam MPEG-TS: Chrome/Firefox tidak mendukung, Safari hanya
+# HEVC-in-fMP4. Jadi untuk pemutaran di web, segmen dikonversi ke H.264/AAC.
+#
+# Konversi dijalankan asinkron (satu antrean, anti-duplikat) dan hasilnya
+# disimpan sebagai cache di <root>/.cache-h264/. Cache ikut terhapus sendiri
+# karena berada di dalam volume berkuota.
+# ---------------------------------------------------------------------------
+
+_LOCK = threading.Lock()
+_SEDANG: Dict[str, subprocess.Popen] = {}
+_ANTREAN: "List[str]" = []
+_KONVERSI_MAKS = int(os.getenv("RECORD_TRANSCODE_MAX", "1") or 1)
+
+
+def _cache_dir() -> Path:
+    folder = root_rekaman() / ".cache-h264"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def _path_cache(slug: str, nama: str) -> Path:
+    batang = re.sub(r"[^A-Za-z0-9_.-]", "_", nama)
+    return _cache_dir() / slug / (batang.rsplit(".", 1)[0] + ".mp4")
+
+
+def _kunci(slug: str, nama: str) -> str:
+    return f"{slug}/{nama}"
+
+
+def _jalankan(kunci: str, sumber: Path, tujuan: Path) -> None:
+    """Konversi satu segmen ke H.264/AAC MP4 (faststart agar bisa langsung diputar)."""
+    tujuan.parent.mkdir(parents=True, exist_ok=True)
+    sementara = tujuan.with_suffix(".part.mp4")
+    cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        str(sumber),
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "26",
+        "-profile:v",
+        "main",
+        "-pix_fmt",
+        "yuv420p",
+        # turunkan ke 704x576 maksimum: rekaman sub-stream, cukup untuk arsip
+        "-vf",
+        "scale='min(704,iw)':-2",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "64k",
+        "-movflags",
+        "+faststart",
+        "-f",
+        "mp4",
+        str(sementara),
+    ]
+    proses = subprocess.Popen(
+        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+    )
+    with _LOCK:
+        _SEDANG[kunci] = proses
+    galat = b""
+    try:
+        _, galat = proses.communicate(timeout=3600)
+        if proses.returncode == 0 and sementara.is_file():
+            sementara.replace(tujuan)
+        else:
+            sementara.unlink(missing_ok=True)
+    except subprocess.TimeoutExpired:
+        proses.kill()
+        sementara.unlink(missing_ok=True)
+    except Exception:  # noqa: BLE001 - jangan sampai thread mematikan proses utama
+        sementara.unlink(missing_ok=True)
+    finally:
+        with _LOCK:
+            _SEDANG.pop(kunci, None)
+
+
+def _mulai(slug: str, nama: str) -> str:
+    """Pastikan konversi berjalan. Kembalikan status: siap|proses|antre."""
+    sumber = _berkas_aman(slug, nama)
+    tujuan = _path_cache(slug, nama)
+    kunci = _kunci(slug, nama)
+
+    if tujuan.is_file() and tujuan.stat().st_size > 1024:
+        if tujuan.stat().st_mtime >= sumber.stat().st_mtime:
+            return "siap"
+
+    with _LOCK:
+        if kunci in _SEDANG:
+            return "proses"
+        if kunci in _ANTREAN:
+            return "antre"
+        if len(_SEDANG) >= _KONVERSI_MAKS:
+            _ANTREAN.append(kunci)
+            return "antre"
+
+    _thread = threading.Thread(
+        target=_jalankan, args=(kunci, sumber, tujuan), daemon=True
+    )
+    _thread.start()
+    return "proses"
+
+
+@router.get("/h264/{slug}/{nama}")
+def h264(
+    request: Request,
+    slug: str,
+    nama: str,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Mulai/cek konversi H.264 satu segmen. JSON: {status, url}."""
+    status = _mulai(slug, nama)
+    url = f"/admin/recordings/h264-file/{slug}/{nama}"
+    if status == "siap":
+        audit.record(
+            db, request, "recording_play", user=user, detail=f"h264 {nama}"[:120]
+        )
+    return JSONResponse({"status": status, "url": url})
+
+
+@router.get("/h264-file/{slug}/{nama}")
+def h264_file(
+    request: Request,
+    slug: str,
+    nama: str,
+    unduh: int = Query(0, ge=0, le=1),
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Sajikan MP4 H.264 hasil konversi (mendukung HTTP range / seek)."""
+    tujuan = _path_cache(slug, nama)
+    if not tujuan.is_file():
+        status = _mulai(slug, nama)
+        raise HTTPException(
+            status_code=409,
+            detail={"status": status, "pesan": "Konversi belum selesai"},
+        )
+    kamera = db.query(Camera).filter(Camera.slug == slug).one_or_none()
+    audit.record(
+        db,
+        request,
+        "recording_download" if unduh else "recording_stream",
+        user=user,
+        camera=kamera,
+        detail=f"h264 {nama}"[:120],
+    )
+    return FileResponse(
+        tujuan,
+        media_type="video/mp4",
+        filename=(nama.rsplit(".", 1)[0] + ".mp4") if unduh else None,
         content_disposition_type="attachment" if unduh else "inline",
     )

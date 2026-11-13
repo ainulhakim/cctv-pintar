@@ -50,6 +50,40 @@ def kumpulkan(root: Path) -> List[Tuple[Path, int, float]]:
     return hasil
 
 
+def bersihkan_cache_h264(root: Path, maks_gb: float = 4.0) -> Dict[str, object]:
+    """Buang cache konversi H.264 terlama bila melebihi batas.
+
+    Cache ini hasil `app/routers/admin_recordings.py` (transcode HEVC -> H.264
+    untuk pemutaran di browser). Disimpan di <root>/.cache-h264 supaya otomatis
+    ikut berada di dalam volume berkuota.
+    """
+    folder = Path(root) / ".cache-h264"
+    if not folder.is_dir():
+        return {"dihapus": 0, "dibebaskan_mb": 0.0}
+    berkas = []
+    for path in folder.rglob("*.mp4"):
+        try:
+            st = path.stat()
+        except OSError:
+            continue
+        berkas.append((st.st_mtime, st.st_size, path))
+    total = sum(b[1] for b in berkas)
+    batas = int(maks_gb * GB)
+    dihapus = 0
+    dibebaskan = 0
+    for _mtime, ukuran, path in sorted(berkas):
+        if total <= batas:
+            break
+        try:
+            path.unlink()
+            total -= ukuran
+            dihapus += 1
+            dibebaskan += ukuran
+        except OSError:
+            continue
+    return {"dihapus": dihapus, "dibebaskan_mb": round(dibebaskan / 1024 ** 2, 1)}
+
+
 def bersihkan(
     root: Path,
     kuota_bytes: int,
@@ -126,6 +160,8 @@ def main(argv=None) -> int:
                    help="jangan hapus berkas lebih muda dari N detik (default 120)")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--json", action="store_true")
+    p.add_argument("--h264-cache-gb", type=float, default=4.0,
+                   help="batas cache konversi H.264 di <root>/.cache-h264 (0 = nonaktif)")
     args = p.parse_args(argv)
 
     root = Path(args.root)
@@ -144,6 +180,13 @@ def main(argv=None) -> int:
         min_keep_seconds=args.min_keep_seconds,
         dry_run=args.dry_run,
     )
+
+    # Bersihkan cache konversi H.264 (hasil transcode untuk pemutaran web)
+    # supaya tidak menumpuk memakan kuota rekaman.
+    cache_info = {"dihapus": 0, "dibebaskan_mb": 0.0}
+    if args.h264_cache_gb and args.h264_cache_gb > 0 and not args.dry_run:
+        cache_info = bersihkan_cache_h264(root, maks_gb=args.h264_cache_gb)
+    ringkas["h264_cache"] = cache_info
 
     if args.json:
         print(json.dumps(ringkas))
