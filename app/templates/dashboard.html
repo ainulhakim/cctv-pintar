@@ -9,10 +9,22 @@
       Status diperbarui otomatis tiap 30 detik · <span id="jam">{{ sekarang }}</span> {{ tz_name }}
     </p>
   </div>
-  <button id="tombol-segarkan"
-          class="rounded-md border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800">
-    Segarkan
-  </button>
+  <div class="flex items-center gap-2">
+    <button id="tombol-segarkan"
+            class="rounded-md border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800">
+      Segarkan
+    </button>
+    {% if user %}
+    <a href="/admin"
+       class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-amber-400">
+      Panel Admin
+    </a>
+    {% else %}
+    <a href="/login"
+       class="rounded-md border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800"
+       title="Masuk sebagai admin">Masuk Admin</a>
+    {% endif %}
+  </div>
 </div>
 
 <div id="grid" class="mt-6 grid gap-4 md:grid-cols-2">
