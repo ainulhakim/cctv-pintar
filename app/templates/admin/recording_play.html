@@ -1,0 +1,46 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Putar rekaman · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-start justify-between gap-3">
+  <div>
+    <h1 class="text-lg font-semibold">
+      {{ kamera.name if kamera else slug }} — {{ tanggal }} {{ jam }}
+    </h1>
+    <p class="text-sm text-slate-400">
+      {{ ukuran_mb }} MB · segmen 1 jam · <a href="/admin/recordings" class="text-emerald-400 hover:underline">kembali ke daftar</a>
+    </p>
+  </div>
+  <div class="flex flex-wrap gap-2 text-sm">
+    {% if berikutnya %}
+    <a href="/admin/recordings/play/{{ slug }}/{{ berikutnya.nama }}"
+       class="rounded-md border border-slate-700 px-3 py-1.5 text-slate-300 hover:bg-slate-800">
+      ← Lebih baru ({{ berikutnya.jam }})
+    </a>
+    {% endif %}
+    {% if sebelumnya %}
+    <a href="/admin/recordings/play/{{ slug }}/{{ sebelumnya.nama }}"
+       class="rounded-md border border-slate-700 px-3 py-1.5 text-slate-300 hover:bg-slate-800">
+      Lebih lama ({{ sebelumnya.jam }}) →
+    </a>
+    {% endif %}
+    <a href="/admin/recordings/file/{{ slug }}/{{ nama }}?unduh=1"
+       class="rounded-md bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-500">
+      Unduh
+    </a>
+  </div>
+</div>
+
+<div class="mt-5 overflow-hidden rounded-xl border border-slate-800 bg-black">
+  <video class="aspect-video w-full" controls autoplay muted playsinline preload="metadata">
+    <source src="/admin/recordings/file/{{ slug }}/{{ nama }}" type="{{ mime }}">
+    Browser tidak mendukung pemutaran berkas ini.
+  </video>
+</div>
+
+<p class="mt-3 text-xs text-slate-500">
+  Pemutaran lewat server ini (bukan langsung ke kamera), mendukung seek/geser waktu.
+  Berkas <code>.ts</code> (MPEG-TS) diputar langsung di browser modern; bila gagal,
+  unduh lalu buka dengan VLC.
+</p>
+{% endblock %}

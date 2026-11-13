@@ -1,0 +1,121 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Rekaman · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-end justify-between gap-3">
+  <div>
+    <h1 class="text-lg font-semibold">Rekaman</h1>
+    <p class="text-sm text-slate-400">
+      Segmen direkam {{ tz_name }} · folder <code class="text-slate-300">{{ root }}</code>
+      · segmen terlama dihapus otomatis saat kuota tercapai
+    </p>
+  </div>
+  <form method="get" action="/admin/recordings" class="flex flex-wrap items-end gap-2 text-sm">
+    <label class="block">
+      <span class="mb-1 block text-xs text-slate-400">Kamera</span>
+      <select name="kamera" class="rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5">
+        <option value="">Semua</option>
+        {% for cam in kamera_semua %}
+        <option value="{{ cam.slug }}" {% if kamera == cam.slug %}selected{% endif %}>{{ cam.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="block">
+      <span class="mb-1 block text-xs text-slate-400">Tanggal</span>
+      <input type="date" name="tanggal" value="{{ tanggal }}" list="daftar-tanggal"
+             class="rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5">
+      <datalist id="daftar-tanggal">
+        {% for t in tanggal_tersedia %}<option value="{{ t }}">{% endfor %}
+      </datalist>
+    </label>
+    <button type="submit"
+            class="rounded-md bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-500">
+      Tampilkan
+    </button>
+    {% if kamera or tanggal %}
+    <a href="/admin/recordings"
+       class="rounded-md border border-slate-700 px-3 py-1.5 text-slate-300 hover:bg-slate-800">Reset</a>
+    {% endif %}
+  </form>
+</div>
+
+<div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+  <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
+    <div class="text-xs text-slate-400">Segmen</div>
+    <div class="mt-1 text-2xl font-semibold">{{ ringkasan.jumlah }}</div>
+  </div>
+  <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
+    <div class="text-xs text-slate-400">Total ukuran</div>
+    <div class="mt-1 text-2xl font-semibold">{{ ringkasan.total_gb }} GB</div>
+  </div>
+  <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
+    <div class="text-xs text-slate-400">Rekaman terlama</div>
+    <div class="mt-1 text-sm font-semibold">
+      {% if ringkasan.pertama %}{{ ringkasan.pertama.strftime('%d %b %H:%M') }}{% else %}—{% endif %}
+    </div>
+  </div>
+  <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
+    <div class="text-xs text-slate-400">Rekaman terbaru</div>
+    <div class="mt-1 text-sm font-semibold">
+      {% if ringkasan.terakhir %}{{ ringkasan.terakhir.strftime('%d %b %H:%M') }}{% else %}—{% endif %}
+    </div>
+  </div>
+</div>
+
+{% if ringkasan.jumlah == 0 %}
+<div class="mt-6 rounded-xl border border-amber-800 bg-amber-950/40 px-4 py-3 text-sm text-amber-200">
+  Belum ada segmen rekaman pada filter ini. Kalau recorder baru dipasang, segmen pertama
+  muncul setelah beberapa menit; segmen baru ditutup tiap 1 jam.
+</div>
+{% endif %}
+
+{% for slug, segmen in per_kamera.items() %}
+{% if segmen %}
+{% set cam = kamera_semua | selectattr('slug', 'equalto', slug) | first %}
+<section class="mt-6">
+  <h2 class="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-200">
+    <span>{{ cam.name if cam else slug }}</span>
+    <span class="rounded-md bg-slate-800 px-2 py-0.5 text-xs font-normal text-slate-300">
+      {{ segmen|length }} segmen · {{ (segmen|sum(attribute='ukuran') / 1073741824)|round(2) }} GB
+    </span>
+  </h2>
+  <div class="overflow-hidden rounded-xl border border-slate-800">
+    <table class="w-full text-left text-sm">
+      <thead class="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
+        <tr>
+          <th class="px-3 py-2">Mulai</th>
+          <th class="px-3 py-2">Durasi</th>
+          <th class="px-3 py-2">Ukuran</th>
+          <th class="px-3 py-2 text-right">Aksi</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800">
+        {% for s in segmen[:60] %}
+        <tr class="hover:bg-slate-900/60">
+          <td class="px-3 py-2 font-mono text-slate-200">{{ s.tanggal }} {{ s.jam }}</td>
+          <td class="px-3 py-2 text-slate-400">± 1 jam</td>
+          <td class="px-3 py-2 text-slate-400">{{ s.ukuran_mb }} MB</td>
+          <td class="px-3 py-2 text-right">
+            <a href="/admin/recordings/play/{{ slug }}/{{ s.nama }}"
+               class="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-500">
+              Putar
+            </a>
+            <a href="/admin/recordings/file/{{ slug }}/{{ s.nama }}?unduh=1"
+               class="ml-1 rounded-md border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800">
+              Unduh
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if segmen|length > 60 %}
+  <p class="mt-2 text-xs text-slate-500">
+    Menampilkan 60 segmen terbaru dari {{ segmen|length }}. Persempit dengan filter tanggal.
+  </p>
+  {% endif %}
+</section>
+{% endif %}
+{% endfor %}
+{% endblock %}

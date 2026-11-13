@@ -21,6 +21,7 @@ from .routers import (
     admin_home,
     admin_logs,
     admin_policies,
+    admin_recordings,
     admin_users,
     auth_router,
     stream,
@@ -56,6 +57,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_cameras.router)
     app.include_router(admin_policies.router)
     app.include_router(admin_users.router)
+    app.include_router(admin_recordings.router)
     app.include_router(admin_logs.router)
 
     @app.middleware("http")
