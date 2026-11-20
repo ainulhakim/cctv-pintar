@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 import httpx
@@ -20,6 +21,26 @@ from ..security import verify_password
 from ..templating import templates
 
 router = APIRouter(tags=["view"])
+
+# Jangan bocorkan alamat IP ke halaman pantauan (bisa diakses publik bila
+# PUBLIC_VIEW=1). Nama/lokasi kamera diketik bebas oleh admin, jadi pola IP
+# disaring di sini — panel admin tetap menampilkan teks aslinya.
+_POLA_IP = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b")
+
+
+def sembunyikan_ip(teks: Optional[str]) -> Optional[str]:
+    """Buang alamat IP dari teks yang tampil di viewer.
+
+    "Kamera Kantor 2 (192.168.1.21)" -> "Kamera Kantor 2"
+    Teks tanpa IP dikembalikan apa adanya.
+    """
+    if not teks:
+        return teks
+    bersih = _POLA_IP.sub("", teks)
+    bersih = re.sub(r"[\(\[]\s*[\)\]]", "", bersih)
+    bersih = re.sub(r"\s{2,}", " ", bersih)
+    bersih = re.sub(r"\s+([,.;:)\]])", r"\1", bersih)
+    return bersih.strip(" -–—|,;:")
 
 
 def _publisher_map(timeout: float = 2.0) -> dict:
@@ -95,8 +116,8 @@ def camera_payload(kamera: Camera, user: Optional[User] = None, request: Request
 
     return {
         "slug": kamera.slug,
-        "name": kamera.name,
-        "location": kamera.location,
+        "name": sembunyikan_ip(kamera.name),
+        "location": sembunyikan_ip(kamera.location),
         "enabled": kamera.enabled,
         "open": terbuka,
         "live": keadaan == health.LIVE,

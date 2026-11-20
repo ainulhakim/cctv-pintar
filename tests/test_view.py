@@ -184,3 +184,44 @@ class TestSnapshotCache:
         snapshots.get_snapshot("utara", now=1006, ttl=5)  # kadaluarsa
         assert len(panggilan) == 2
         snapshots.cache_clear()
+
+
+class TestSembunyikanIp:
+    """Alamat IP tidak boleh tampil di viewer/API publik (PUBLIC_VIEW=1)."""
+
+    @pytest.mark.parametrize(
+        "masuk,keluar",
+        [
+            ("Kamera Kantor 2 (192.168.1.21)", "Kamera Kantor 2"),
+            ("Kamera [10.0.0.5]", "Kamera"),
+            ("Kamera Utara", "Kamera Utara"),
+            ("192.168.1.21", ""),
+            ("", ""),
+            (None, None),
+        ],
+    )
+    def test_sembunyikan_ip(self, masuk, keluar):
+        from app.routers.view import sembunyikan_ip
+
+        assert sembunyikan_ip(masuk) == keluar
+
+    def test_viewer_tidak_menampilkan_ip(self, client, db, admin_user):
+        buat_kamera(db, "kantor2", "Kamera Kantor 2 (192.168.1.21)")
+        login(client, "admin", ADMIN_PW)
+
+        resp = client.get("/", headers={"accept": "text/html"})
+        assert resp.status_code == 200
+        assert "Kamera Kantor 2" in resp.text
+        assert "192.168.1.21" not in resp.text
+
+        api = client.get("/api/cameras/status")
+        assert api.status_code == 200
+        assert "192.168.1.21" not in api.text
+
+    def test_admin_tetap_melihat_nama_asli(self, client, db, admin_user):
+        buat_kamera(db, "kantor2", "Kamera Kantor 2 (192.168.1.21)")
+        login(client, "admin", ADMIN_PW)
+
+        resp = client.get("/admin/cameras")
+        assert resp.status_code == 200
+        assert "192.168.1.21" in resp.text
