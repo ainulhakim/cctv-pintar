@@ -7,4 +7,7 @@ itsdangerous==2.2.0
 jinja2==3.1.5
 httpx==0.28.1
 python-multipart==0.0.20
+# Kontrol PTZ kamera Tapo (API lokal port 443). Opsional: aplikasi tetap jalan
+# tanpa paket ini, hanya panel PTZ yang melaporkan "belum dikonfigurasi".
+pytapo==3.4.32
 pytest==8.3.4

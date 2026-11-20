@@ -1,0 +1,193 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Kontrol PTZ · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <div>
+    <h1 class="text-lg font-semibold">Kontrol PTZ</h1>
+    <p class="text-sm text-slate-400">
+      Geser arah kamera per langkah. Pratinjau diperbarui tiap 3 detik · hanya admin
+    </p>
+  </div>
+  <a href="/admin/" class="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800">
+    ← Ringkasan
+  </a>
+</div>
+
+<div class="mt-5 grid gap-4 lg:grid-cols-2">
+  {% for k in kartu %}
+  {% set cam = k.kamera %}
+  {% set bisa = k.kemampuan.didukung %}
+  <article class="rounded-xl border border-slate-800 bg-slate-900/60 p-3"
+           data-slug="{{ cam.slug }}">
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <div class="truncate font-medium">{{ cam.name }}</div>
+        <div class="truncate text-xs text-slate-400">{{ cam.location or '—' }}</div>
+      </div>
+      <span class="whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold
+                   {{ 'bg-emerald-500/20 text-emerald-300' if bisa else 'bg-slate-700/60 text-slate-300' }}">
+        {{ 'PTZ siap' if bisa else 'tanpa motor' }}
+      </span>
+    </div>
+
+    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+      <div class="relative overflow-hidden rounded-lg bg-black">
+        <img class="aspect-video w-full object-contain pratinjau"
+             data-src="/api/snapshot/{{ cam.slug }}"
+             alt="Pratinjau {{ cam.name }}"
+             src="/api/snapshot/{{ cam.slug }}">
+        <span class="absolute bottom-1 left-2 text-[10px] text-slate-400">pratinjau 3 detik</span>
+      </div>
+
+      <div>
+        {% if bisa %}
+        <div class="mx-auto grid w-44 grid-cols-3 gap-1.5 text-lg">
+          <span></span>
+          <button type="button" data-arah="atas"
+                  class="tombol-arah rounded-md border border-slate-700 py-2 hover:bg-slate-800">↑</button>
+          <span></span>
+          <button type="button" data-arah="kiri"
+                  class="tombol-arah rounded-md border border-slate-700 py-2 hover:bg-slate-800">←</button>
+          <span class="grid place-items-center text-xs text-slate-500">PTZ</span>
+          <button type="button" data-arah="kanan"
+                  class="tombol-arah rounded-md border border-slate-700 py-2 hover:bg-slate-800">→</button>
+          <span></span>
+          <button type="button" data-arah="bawah"
+                  class="tombol-arah rounded-md border border-slate-700 py-2 hover:bg-slate-800">↓</button>
+          <span></span>
+        </div>
+
+        <div class="mt-3 space-y-2">
+          <div class="flex gap-2">
+            <select class="pilih-preset w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs">
+              <option value="">— preset —</option>
+              {% for p in k.preset %}
+              <option value="{{ p.id }}">{{ p.nama }}</option>
+              {% endfor %}
+            </select>
+            <button type="button"
+                    class="tombol-preset shrink-0 rounded-md border border-slate-700 px-3 py-1.5 text-xs hover:bg-slate-800">
+              Ke sana
+            </button>
+          </div>
+          <div class="flex gap-2">
+            <input name="nama" placeholder="nama preset baru" maxlength="32"
+                   class="input-nama w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs">
+            <button type="button"
+                    class="tombol-simpan shrink-0 rounded-md border border-slate-700 px-3 py-1.5 text-xs hover:bg-slate-800">
+              Simpan
+            </button>
+          </div>
+        </div>
+        {% else %}
+        <p class="text-xs text-amber-300/90">
+          Kamera ini tidak bisa digerakkan: {{ k.kemampuan.alasan or 'motor pan/tilt tidak tersedia' }}
+        </p>
+        <p class="mt-2 text-xs text-slate-500">
+          Kontrol PTZ hanya muncul untuk kamera yang benar-benar menjawab punya motor.
+        </p>
+        {% endif %}
+        <p class="pesan mt-2 text-xs text-slate-400"></p>
+      </div>
+    </div>
+  </article>
+  {% else %}
+  <p class="text-sm text-slate-400">Belum ada kamera aktif.</p>
+  {% endfor %}
+</div>
+
+<script>
+(function () {
+  const kartu = document.querySelectorAll('article[data-slug]');
+
+  /* Pratinjau: refresh berkala supaya efek gerakan langsung terlihat. */
+  kartu.forEach(function (el) {
+    const img = el.querySelector('.pratinjau');
+    if (!img) return;
+    setInterval(function () {
+      img.src = img.dataset.src + '?t=' + Date.now();
+    }, 3000);
+  });
+
+  function pesan(el, teks, warna) {
+    const p = el.querySelector('.pesan');
+    if (!p) return;
+    p.textContent = teks;
+    p.className = 'pesan mt-2 text-xs ' + (warna || 'text-slate-400');
+    if (teks) {
+      clearTimeout(p._timer);
+      p._timer = setTimeout(function () { p.textContent = ''; }, 4000);
+    }
+  }
+
+  async function kirim(el, data) {
+    const slug = el.dataset.slug;
+    try {
+      const resp = await fetch('/admin/api/ptz/' + slug, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams(data).toString()
+      });
+      const json = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) {
+        pesan(el, json.detail || ('Gagal (' + resp.status + ')'), 'text-red-300');
+        return false;
+      }
+      pesan(el, 'OK', 'text-emerald-300');
+      const img = el.querySelector('.pratinjau');
+      if (img) { setTimeout(function () { img.src = img.dataset.src + '?t=' + Date.now(); }, 1200); }
+      return true;
+    } catch (err) {
+      pesan(el, 'Koneksi gagal: ' + err, 'text-red-300');
+      return false;
+    }
+  }
+
+  kartu.forEach(function (el) {
+    el.querySelectorAll('.tombol-arah').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        kirim(el, {aksi: 'gerak', arah: btn.dataset.arah});
+      });
+    });
+
+    const tombolPreset = el.querySelector('.tombol-preset');
+    if (tombolPreset) {
+      tombolPreset.addEventListener('click', function () {
+        const pilih = el.querySelector('.pilih-preset');
+        if (!pilih || !pilih.value) { pesan(el, 'Pilih preset dulu.', 'text-amber-300'); return; }
+        kirim(el, {aksi: 'ke_preset', preset_id: pilih.value});
+      });
+    }
+
+    const tombolSimpan = el.querySelector('.tombol-simpan');
+    if (tombolSimpan) {
+      tombolSimpan.addEventListener('click', async function () {
+        const input = el.querySelector('.input-nama');
+        const nama = (input && input.value || '').trim();
+        if (!nama) { pesan(el, 'Nama preset wajib diisi.', 'text-amber-300'); return; }
+        const ok = await kirim(el, {aksi: 'simpan_preset', nama: nama});
+        if (ok) {
+          input.value = '';
+          try {
+            const resp = await fetch('/admin/api/ptz/' + el.dataset.slug + '/preset',
+                                     {credentials: 'same-origin'});
+            const json = await resp.json();
+            const pilih = el.querySelector('.pilih-preset');
+            if (pilih && json.preset) {
+              pilih.innerHTML = '<option value="">— preset —</option>' +
+                json.preset.map(function (p) {
+                  const o = document.createElement('option');
+                  o.value = p.id; o.textContent = p.nama;
+                  return o.outerHTML;
+                }).join('');
+            }
+          } catch (e) { /* daftar preset diperbarui saat halaman dibuka lagi */ }
+        }
+      });
+    }
+  });
+})();
+</script>
+{% endblock %}

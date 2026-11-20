@@ -8,13 +8,16 @@
     ('/admin/policies', 'Jadwal Akses'),
     ('/admin/users', 'Pengguna'),
     ('/admin/recordings', 'Rekaman'),
+    ('/admin/ptz', 'Kontrol PTZ'),
     ('/admin/logs', 'Log & Status')
   ] %}
   {% for href, label in menu %}
+  {% if href != '/admin/ptz' or ptz_siap() %}
   <a href="{{ href }}"
      class="rounded-md border px-3 py-1.5 {% if aktif == href %}border-emerald-500 bg-emerald-500/10 text-emerald-300{% else %}border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
     {{ label }}
   </a>
+  {% endif %}
   {% endfor %}
   <a href="/" class="ml-auto rounded-md border border-slate-700 px-3 py-1.5 text-slate-300 hover:bg-slate-800">
     Lihat pantauan →

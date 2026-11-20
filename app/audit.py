@@ -17,6 +17,8 @@ ACTION_SNAPSHOT_DENIED = "snapshot_denied"
 ACTION_OVERRIDE_GRANTED = "override_granted"
 ACTION_OVERRIDE_FAILED = "override_failed"
 ACTION_OVERRIDE_BLOCKED = "override_blocked"
+ACTION_PTZ = "ptz_move"
+ACTION_PTZ_FAILED = "ptz_failed"
 
 
 def client_ip(request: Request) -> Optional[str]:

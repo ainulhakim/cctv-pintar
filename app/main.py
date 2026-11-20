@@ -21,6 +21,7 @@ from .routers import (
     admin_home,
     admin_logs,
     admin_policies,
+    admin_ptz,
     admin_recordings,
     admin_users,
     auth_router,
@@ -59,6 +60,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_users.router)
     app.include_router(admin_recordings.router)
     app.include_router(admin_logs.router)
+    app.include_router(admin_ptz.router)
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
